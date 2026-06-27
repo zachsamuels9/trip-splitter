@@ -7,6 +7,7 @@ const root = __dirname;
 const dataDir = path.join(root, "data");
 const dataFile = path.join(dataDir, "groups.json");
 const port = Number(process.env.PORT || 4173);
+const host = process.env.HOST || "127.0.0.1";
 
 const mimeTypes = {
   ".html": "text/html; charset=utf-8",
@@ -211,6 +212,6 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(port, "0.0.0.0", () => {
-  console.log(`Trip Split running at http://127.0.0.1:${port}/`);
+server.listen(port, host, () => {
+  console.log(`Trip Split running at http://${host}:${port}/`);
 });

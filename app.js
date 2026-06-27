@@ -97,12 +97,21 @@ function bindEvents() {
   $("#receiptImage").addEventListener("change", scanImage);
   $("#addManualItem").addEventListener("click", () => addManualItem());
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
+  $("#addParsedItem").addEventListener("click", addParsedItem);
   $("#saveReceipt").addEventListener("click", saveReceipt);
   $("#decreaseSplit").addEventListener("click", () => updateSplitCount(splitCount - 1));
   $("#increaseSplit").addEventListener("click", () => updateSplitCount(splitCount + 1));
 
   ["manualTip", "manualTax", "manualFees", "manualDiscount"].forEach((id) => {
     $(`#${id}`).addEventListener("input", renderManualReview);
+  });
+
+  ["reviewName", "reviewDate", "reviewLocation"].forEach((id) => {
+    $(`#${id}`).addEventListener("input", updateParsedDetails);
+  });
+
+  ["reviewTip", "reviewTax", "reviewFees", "reviewDiscount"].forEach((id) => {
+    $(`#${id}`).addEventListener("input", updateParsedAdjustments);
   });
 
   $$(".method").forEach((button) => {
@@ -623,14 +632,12 @@ function buildManualReceipt() {
 
 function renderAssignment() {
   if (!parsedReceipt) return;
-  const total = receiptTotal(parsedReceipt);
+  syncReviewFields();
   $("#itemizeTitle").textContent = parsedReceipt.name || "Receipt";
-  $("#parsedTotal").textContent = formatNative(total, parsedReceipt.currency);
+  renderReceiptTotals();
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
   $("#splitCount").textContent = splitCount;
-  $("#splitEachLabel").textContent = `${formatNative(total / splitCount, parsedReceipt.currency)} each`;
-  $("#saveReceiptLabel").textContent = splitMode === "even" ? `Split ${formatNative(total, parsedReceipt.currency)}` : "Add to trip";
 
   $("#itemsList").innerHTML = parsedReceipt.items.length
     ? parsedReceipt.items
@@ -645,9 +652,15 @@ function renderAssignment() {
                   <input type="checkbox" data-item-pick="${item.id}" ${activePersonId && item.assignedTo?.includes(activePersonId) ? "checked" : ""}>
                   <span></span>
                 </label>
-                <div>
-                  <div class="item-name">${escapeHtml(item.name)}</div>
-                  <div class="subtext">${formatNative(item.amount, parsedReceipt.currency)}</div>
+                <div class="parsed-item-fields">
+                  <label>
+                    <span>Item</span>
+                    <input data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" />
+                  </label>
+                  <label>
+                    <span>Amount</span>
+                    <input data-edit-item-amount="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(item.amount)}" />
+                  </label>
                 </div>
               </div>
               <div class="chip-grid">
@@ -668,16 +681,7 @@ function renderAssignment() {
         .join("")
     : `<div class="empty">No priced food items found.</div>`;
 
-  $("#feesList").innerHTML = parsedReceipt.fees.length || parsedReceipt.discount
-    ? [
-        ...parsedReceipt.fees.map(
-          (fee) => `<div class="fee-row"><span>${escapeHtml(fee.name)}</span><strong>${formatNative(fee.amount, parsedReceipt.currency)}</strong></div>`
-        ),
-        parsedReceipt.discount
-          ? `<div class="fee-row"><span>Discount</span><strong>-${formatNative(parsedReceipt.discount, parsedReceipt.currency)}</strong></div>`
-          : "",
-      ].join("")
-    : `<div class="fee-row"><span>No separate tip, tax, or fees</span><strong>${formatNative(0, parsedReceipt.currency)}</strong></div>`;
+  renderFeesList();
 
   $$("[data-item-pick]").forEach((box) => {
     box.addEventListener("change", () => {
@@ -695,7 +699,118 @@ function renderAssignment() {
   $$("[data-delete-item]").forEach((button) => {
     button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
   });
+  $$("[data-edit-item-name]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemName));
+  });
+  $$("[data-edit-item-amount]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
+  });
   makeIcons();
+}
+
+function syncReviewFields() {
+  if (!parsedReceipt) return;
+  setReviewValue("reviewName", parsedReceipt.name || "");
+  setReviewValue("reviewDate", parsedReceipt.date || "");
+  setReviewValue("reviewLocation", parsedReceipt.location || "");
+  setReviewValue("reviewTip", adjustmentAmount("tip"));
+  setReviewValue("reviewTax", adjustmentAmount("tax"));
+  setReviewValue("reviewFees", adjustmentAmount("fees"));
+  setReviewValue("reviewDiscount", parsedReceipt.discount || 0);
+}
+
+function renderReceiptTotals() {
+  if (!parsedReceipt) return;
+  const total = receiptTotal(parsedReceipt);
+  $("#parsedTotal").textContent = formatNative(total, parsedReceipt.currency);
+  $("#splitEachLabel").textContent = `${formatNative(total / splitCount, parsedReceipt.currency)} each`;
+  $("#saveReceiptLabel").textContent = splitMode === "even" ? `Split ${formatNative(total, parsedReceipt.currency)}` : "Add to trip";
+}
+
+function renderFeesList() {
+  if (!parsedReceipt) return;
+  const rows = [
+    ...parsedReceipt.fees.map(
+      (fee) => `<div class="fee-row"><span>${escapeHtml(fee.name)}</span><strong>${formatNative(fee.amount, parsedReceipt.currency)}</strong></div>`
+    ),
+    parsedReceipt.discount
+      ? `<div class="fee-row"><span>Discount</span><strong>-${formatNative(parsedReceipt.discount, parsedReceipt.currency)}</strong></div>`
+      : "",
+  ].filter(Boolean);
+  $("#feesList").innerHTML = rows.length
+    ? rows.join("")
+    : `<div class="fee-row"><span>No separate tip, tax, or fees</span><strong>${formatNative(0, parsedReceipt.currency)}</strong></div>`;
+}
+
+function setReviewValue(id, value) {
+  const input = $(`#${id}`);
+  if (document.activeElement === input) return;
+  input.value = value;
+}
+
+function updateParsedDetails() {
+  if (!parsedReceipt) return;
+  parsedReceipt.name = $("#reviewName").value.trim() || "Receipt";
+  parsedReceipt.date = $("#reviewDate").value || new Date().toISOString().slice(0, 10);
+  parsedReceipt.location = $("#reviewLocation").value.trim();
+  $("#itemizeTitle").textContent = parsedReceipt.name;
+}
+
+function updateParsedAdjustments() {
+  if (!parsedReceipt) return;
+  setAdjustmentAmount("tip", Number($("#reviewTip").value || 0));
+  setAdjustmentAmount("tax", Number($("#reviewTax").value || 0));
+  setAdjustmentAmount("fees", Number($("#reviewFees").value || 0));
+  parsedReceipt.discount = Number($("#reviewDiscount").value || 0);
+  renderReceiptTotals();
+  renderFeesList();
+}
+
+function adjustmentAmount(type) {
+  if (!parsedReceipt) return 0;
+  return sum(parsedReceipt.fees.filter((fee) => adjustmentType(fee.name) === type).map((fee) => fee.amount));
+}
+
+function setAdjustmentAmount(type, amount) {
+  const nextAmount = Math.max(0, amount);
+  parsedReceipt.fees = parsedReceipt.fees.filter((fee) => adjustmentType(fee.name) !== type);
+  if (nextAmount > 0) {
+    parsedReceipt.fees.push({ id: crypto.randomUUID(), name: adjustmentLabel(type), amount: nextAmount });
+  }
+}
+
+function adjustmentType(name) {
+  if (/tip|gratuity/i.test(name)) return "tip";
+  if (/tax|vat|gst/i.test(name)) return "tax";
+  return "fees";
+}
+
+function adjustmentLabel(type) {
+  if (type === "tip") return "Tip";
+  if (type === "tax") return "Tax";
+  return "Fees";
+}
+
+function updateParsedItem(itemId) {
+  if (!parsedReceipt) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+  const name = $(`[data-edit-item-name="${itemId}"]`)?.value.trim();
+  const amount = Number($(`[data-edit-item-amount="${itemId}"]`)?.value || 0);
+  item.name = name || "Item";
+  item.amount = Math.max(0, amount);
+  renderAssignment();
+}
+
+function addParsedItem() {
+  if (!parsedReceipt) return;
+  parsedReceipt.items.push({
+    id: crypto.randomUUID(),
+    name: "New item",
+    amount: 0,
+    assignedTo: activePersonId ? [activePersonId] : [],
+  });
+  renderAssignment();
 }
 
 function deleteParsedItem(itemId) {

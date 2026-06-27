@@ -457,8 +457,22 @@ select:focus {
   display: grid;
   grid-template-columns: 56px 1fr;
   gap: 12px;
-  align-items: center;
+  align-items: start;
   margin-bottom: 14px;
+}
+
+.parsed-item-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.parsed-item-fields label {
+  margin-top: 0;
+}
+
+.parsed-item-fields input {
+  min-height: 48px;
+  font-size: 16px;
 }
 
 .item-checkbox {

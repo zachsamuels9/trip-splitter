@@ -198,6 +198,45 @@
           <span id="scanStatus"></span>
         </section>
 
+        <section class="panel">
+          <div class="section-title">
+            <h2>Review receipt</h2>
+            <button class="small-primary" id="addParsedItem"><i data-lucide="plus"></i><span>Add item</span></button>
+          </div>
+          <label>
+            <span>Name</span>
+            <input id="reviewName" type="text" placeholder="Receipt name" />
+          </label>
+          <div class="field-grid two">
+            <label>
+              <span>Date</span>
+              <input id="reviewDate" type="date" />
+            </label>
+            <label>
+              <span>Location</span>
+              <input id="reviewLocation" type="text" placeholder="Optional" />
+            </label>
+          </div>
+          <div class="field-grid two">
+            <label>
+              <span>Tip</span>
+              <input id="reviewTip" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+            <label>
+              <span>Tax</span>
+              <input id="reviewTax" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+            <label>
+              <span>Fees</span>
+              <input id="reviewFees" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+            <label>
+              <span>Discount</span>
+              <input id="reviewDiscount" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+          </div>
+        </section>
+
         <section class="split-methods">
           <button class="method active" data-split-mode="items">
             <i data-lucide="list-checks"></i>
