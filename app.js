@@ -2,6 +2,8 @@ const storeKey = "trip-split-state-v2";
 const rateKey = "trip-split-rates-v1";
 const supportedCurrencies = ["USD", "THB", "VND"];
 const defaultRates = { USD: 1, THB: 36.7, VND: 25400 };
+const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
+const browserDocument = isBrowser ? document : null;
 
 let state = loadState();
 let rates = loadRates();
@@ -9,49 +11,114 @@ let parsedReceipt = null;
 let splitMode = "items";
 let splitCount = 2;
 let editingReceiptId = null;
-let activeGroupId = new URLSearchParams(location.search).get("group") || localStorage.getItem("trip-split-group-id") || "";
-let activePersonId = activeGroupId ? localStorage.getItem(`trip-split-person-${activeGroupId}`) || "" : "";
+let activeGroupId = currentGroupId();
+let activePersonId = activeGroupId ? readStorage(`trip-split-person-${activeGroupId}`) || "" : "";
 let activeGroup = null;
 let syncTimer = null;
 
-const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+const $ = (selector) => browserDocument?.querySelector(selector) || null;
+const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
-document.addEventListener("DOMContentLoaded", async () => {
-  bindEvents();
-  seedManualRows();
-  registerServiceWorker();
-  refreshRates();
-  await initGroup();
-  render();
-  if (!activeGroupId || activePersonId) showScreen("home");
-});
+if (isBrowser) {
+  browserDocument.addEventListener("DOMContentLoaded", async () => {
+    bindEvents();
+    seedManualRows();
+    registerServiceWorker();
+    refreshRates();
+    await initGroup();
+    render();
+    if (!activeGroupId || activePersonId) showScreen("home");
+  });
+}
 
 function loadState() {
-  const saved = localStorage.getItem(storeKey);
-  if (saved) return JSON.parse(saved);
+  const saved = readStorage(storeKey);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return defaultState();
+    }
+  }
+  return defaultState();
+}
+
+function defaultState() {
   return {
     people: [
-      { id: crypto.randomUUID(), name: "You" },
-      { id: crypto.randomUUID(), name: "Friend" },
+      { id: createId(), name: "You" },
+      { id: createId(), name: "Friend" },
     ],
     receipts: [],
   };
 }
 
 function loadRates() {
-  const saved = localStorage.getItem(rateKey);
-  if (saved) return JSON.parse(saved);
+  const saved = readStorage(rateKey);
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch {
+      return { base: "USD", updatedAt: null, rates: defaultRates };
+    }
+  }
   return { base: "USD", updatedAt: null, rates: defaultRates };
 }
 
 function saveState() {
-  localStorage.setItem(storeKey, JSON.stringify(state));
+  writeStorage(storeKey, JSON.stringify(state));
 }
 
 function saveRates() {
-  localStorage.setItem(rateKey, JSON.stringify(rates));
+  writeStorage(rateKey, JSON.stringify(rates));
+}
+
+function currentGroupId() {
+  const savedGroupId = readStorage("trip-split-group-id") || "";
+  if (!isBrowser) return savedGroupId;
+  try {
+    return new URLSearchParams(window.location.search).get("group") || savedGroupId;
+  } catch {
+    return savedGroupId;
+  }
+}
+
+function readStorage(key) {
+  if (!isBrowser) return null;
+  try {
+    return window.localStorage?.getItem(key) || null;
+  } catch {
+    return null;
+  }
+}
+
+function writeStorage(key, value) {
+  if (!isBrowser) return;
+  try {
+    window.localStorage?.setItem(key, value);
+  } catch {}
+}
+
+function removeStorage(key) {
+  if (!isBrowser) return;
+  try {
+    window.localStorage?.removeItem(key);
+  } catch {}
+}
+
+function safeAlert(message) {
+  if (isBrowser && typeof window.alert === "function") window.alert(message);
+}
+
+function safeConfirm(message) {
+  if (!isBrowser || typeof window.confirm !== "function") return false;
+  return window.confirm(message);
+}
+
+function createId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function bindEvents() {
@@ -60,11 +127,11 @@ function bindEvents() {
   });
 
   $("#resetApp").addEventListener("click", () => {
-    if (!confirm("Reset people, receipts, and balances?")) return;
-    localStorage.removeItem(storeKey);
+    if (!safeConfirm("Reset people, receipts, and balances?")) return;
+    removeStorage(storeKey);
     if (activeGroupId) {
-      localStorage.removeItem("trip-split-group-id");
-      localStorage.removeItem(`trip-split-person-${activeGroupId}`);
+      removeStorage("trip-split-group-id");
+      removeStorage(`trip-split-person-${activeGroupId}`);
     }
     state = loadState();
     parsedReceipt = null;
@@ -121,7 +188,7 @@ function bindEvents() {
 
 function showScreen(name) {
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
-  window.scrollTo({ top: 0, behavior: "instant" });
+  if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
 }
 
@@ -153,7 +220,7 @@ function updateRateStatus(text) {
 
 async function initGroup() {
   if (!activeGroupId) return;
-  localStorage.setItem("trip-split-group-id", activeGroupId);
+  writeStorage("trip-split-group-id", activeGroupId);
   try {
     const group = await api(`/api/groups/${activeGroupId}`);
     activeGroup = group;
@@ -180,14 +247,14 @@ async function createGroup() {
     });
     activeGroupId = result.group.id;
     activePersonId = result.person.id;
-    localStorage.setItem("trip-split-group-id", activeGroupId);
-    localStorage.setItem(`trip-split-person-${activeGroupId}`, activePersonId);
-    history.replaceState(null, "", inviteUrl());
+    writeStorage("trip-split-group-id", activeGroupId);
+    writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+    if (isBrowser) window.history.replaceState(null, "", inviteUrl());
     applyGroup(result.group);
     startSync();
     render();
   } catch {
-    alert("Could not create a shared group. Start the Trip Split server and try again.");
+    safeAlert("Could not create a shared group. Start the Trip Split server and try again.");
   }
 }
 
@@ -201,14 +268,14 @@ async function joinGroup(event) {
       body: { name },
     });
     activePersonId = result.person.id;
-    localStorage.setItem("trip-split-group-id", activeGroupId);
-    localStorage.setItem(`trip-split-person-${activeGroupId}`, activePersonId);
+    writeStorage("trip-split-group-id", activeGroupId);
+    writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     applyGroup(result.group);
     startSync();
     render();
     showScreen("home");
   } catch {
-    alert("Could not join this trip. Check that the invite server is running.");
+    safeAlert("Could not join this trip. Check that the invite server is running.");
   }
 }
 
@@ -216,10 +283,11 @@ async function copyInviteLink() {
   if (!activeGroupId) return;
   $("#inviteLink").select();
   try {
+    if (!isBrowser || !navigator.clipboard) throw new Error("Clipboard unavailable");
     await navigator.clipboard.writeText(inviteUrl());
     $("#groupStatus").textContent = "Invite copied";
   } catch {
-    document.execCommand("copy");
+    browserDocument?.execCommand("copy");
     $("#groupStatus").textContent = "Invite copied";
   }
 }
@@ -235,11 +303,11 @@ async function addPerson(name) {
       render();
       return;
     } catch {
-      alert("Could not add this person to the shared group.");
+      safeAlert("Could not add this person to the shared group.");
       return;
     }
   }
-  state.people.push({ id: crypto.randomUUID(), name });
+  state.people.push({ id: createId(), name });
   saveState();
   render();
 }
@@ -292,7 +360,8 @@ async function api(path, options = {}) {
 }
 
 function inviteUrl() {
-  const url = new URL(location.href);
+  if (!isBrowser) return "";
+  const url = new URL(window.location.href);
   url.searchParams.set("group", activeGroupId);
   return url.toString();
 }
@@ -335,9 +404,9 @@ async function readReceiptText(file) {
   try {
     return await readWithRemoteOcr(file);
   } catch {
-    if (!window.Tesseract) throw new Error("No OCR available");
+    if (!isBrowser || !window.Tesseract) throw new Error("No OCR available");
     $("#scanStatus").textContent = "Receipt OCR unavailable. Trying backup scanner...";
-    const result = await Tesseract.recognize(file, "eng", {
+    const result = await window.Tesseract.recognize(file, "eng", {
       logger: (message) => {
         if (message.status === "recognizing text") {
           $("#scanStatus").textContent = `Backup scanner... ${Math.round(message.progress * 100)}%`;
@@ -395,7 +464,7 @@ function parseReceipt(text, currency, meta = {}) {
 
     const normalized = rawLabel.toLowerCase();
     const itemName = cleanItemName(rawLabel);
-    const entry = { id: crypto.randomUUID(), name: toTitle(itemName), amount: Math.abs(amount.value), assignedTo: [] };
+    const entry = { id: createId(), name: toTitle(itemName), amount: Math.abs(amount.value), assignedTo: [] };
 
     if (/(discount|promo|coupon|comp)/i.test(normalized)) {
       discount += Math.abs(amount.value);
@@ -526,8 +595,8 @@ function setTodayIfBlank() {
 }
 
 function addManualItem(name = "", qty = 1, price = "") {
-  const id = crypto.randomUUID();
-  const row = document.createElement("article");
+  const id = createId();
+  const row = browserDocument.createElement("article");
   row.className = "manual-row";
   row.dataset.manualItem = id;
   row.innerHTML = `
@@ -599,13 +668,13 @@ function renderManualReview() {
 function buildManualReceipt() {
   const draft = getManualDraft();
   if (!draft.items.length) {
-    alert("Add at least one priced item.");
+    safeAlert("Add at least one priced item.");
     return;
   }
   const fees = [];
-  if (draft.tip > 0) fees.push({ id: crypto.randomUUID(), name: "Tip", amount: draft.tip });
-  if (draft.tax > 0) fees.push({ id: crypto.randomUUID(), name: "Tax", amount: draft.tax });
-  if (draft.fees > 0) fees.push({ id: crypto.randomUUID(), name: "Fees", amount: draft.fees });
+  if (draft.tip > 0) fees.push({ id: createId(), name: "Tip", amount: draft.tip });
+  if (draft.tax > 0) fees.push({ id: createId(), name: "Tax", amount: draft.tax });
+  if (draft.fees > 0) fees.push({ id: createId(), name: "Fees", amount: draft.fees });
   parsedReceipt = {
     currency: $("#receiptCurrency").value,
     name: $("#manualName").value.trim() || "Dinner",
@@ -616,7 +685,7 @@ function buildManualReceipt() {
     imageDataUrl: "",
     restaurantName: "",
     items: draft.items.map((item) => ({
-      id: crypto.randomUUID(),
+      id: createId(),
       name: item.name,
       amount: item.total,
       assignedTo: [],
@@ -744,7 +813,7 @@ function renderFeesList() {
 
 function setReviewValue(id, value) {
   const input = $(`#${id}`);
-  if (document.activeElement === input) return;
+  if (browserDocument?.activeElement === input) return;
   input.value = value;
 }
 
@@ -775,7 +844,7 @@ function setAdjustmentAmount(type, amount) {
   const nextAmount = Math.max(0, amount);
   parsedReceipt.fees = parsedReceipt.fees.filter((fee) => adjustmentType(fee.name) !== type);
   if (nextAmount > 0) {
-    parsedReceipt.fees.push({ id: crypto.randomUUID(), name: adjustmentLabel(type), amount: nextAmount });
+    parsedReceipt.fees.push({ id: createId(), name: adjustmentLabel(type), amount: nextAmount });
   }
 }
 
@@ -805,7 +874,7 @@ function updateParsedItem(itemId) {
 function addParsedItem() {
   if (!parsedReceipt) return;
   parsedReceipt.items.push({
-    id: crypto.randomUUID(),
+    id: createId(),
     name: "New item",
     amount: 0,
     assignedTo: activePersonId ? [activePersonId] : [],
@@ -836,7 +905,7 @@ function saveReceipt() {
   if (!parsedReceipt) return;
   const paidBy = $("#paidBy").value;
   if (!paidBy) {
-    alert("Add at least one person and choose who paid.");
+    safeAlert("Add at least one person and choose who paid.");
     return;
   }
 
@@ -850,7 +919,7 @@ function saveReceipt() {
       item.assignedTo = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
     });
     if (parsedReceipt.items.some((item) => item.assignedTo.length === 0)) {
-      alert("Every item needs at least one person selected, or choose Split evenly.");
+      safeAlert("Every item needs at least one person selected, or choose Split evenly.");
       return;
     }
   }
@@ -858,7 +927,7 @@ function saveReceipt() {
   const shares = splitMode === "even" ? calculateEvenShares(parsedReceipt, splitCount) : calculateItemShares(parsedReceipt);
   const totalNative = sum(Object.values(shares.native));
   const receipt = {
-    id: editingReceiptId || crypto.randomUUID(),
+    id: editingReceiptId || createId(),
     createdAt: new Date().toISOString(),
     currency: parsedReceipt.currency,
     name: parsedReceipt.name,
@@ -1010,7 +1079,7 @@ function removePerson(personId) {
     (receipt) => receipt.paidBy === personId || Object.keys(receipt.shares.usd).some((id) => id === personId && receipt.shares.usd[id] > 0)
   );
   if (used) {
-    alert("This person is already in a receipt. Reset the trip to remove them.");
+    safeAlert("This person is already in a receipt. Reset the trip to remove them.");
     return;
   }
   state.people = state.people.filter((person) => person.id !== personId);
@@ -1205,11 +1274,11 @@ function escapeHtml(value) {
 }
 
 function makeIcons() {
-  if (window.lucide) window.lucide.createIcons();
+  if (isBrowser && window.lucide) window.lucide.createIcons();
 }
 
 function registerServiceWorker() {
-  if (!("serviceWorker" in navigator)) return;
+  if (!isBrowser || !("serviceWorker" in navigator)) return;
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/sw.js").catch(() => {});
   });
