@@ -1,0 +1,22 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+const jsFiles = ["app.js", "server.js", "api/groups.js", "api/groups/[...path].js", "api/ocr.js", "lib/group-store.js", "sw.js"];
+
+for (const file of jsFiles) {
+  execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });
+}
+
+const forbiddenPatterns = [
+  { file: "app.js", pattern: /helloworld|OCR_SPACE_API_KEY|UPSTASH_REDIS_REST_TOKEN/ },
+  { file: "index.html", pattern: /localhost|127\.0\.0\.1/ },
+];
+
+for (const { file, pattern } of forbiddenPatterns) {
+  const contents = readFileSync(file, "utf8");
+  if (pattern.test(contents)) {
+    throw new Error(`${file} contains deployment-blocking demo or secret-like text.`);
+  }
+}
+
+console.log("Lint checks passed.");

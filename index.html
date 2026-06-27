@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#09070e" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Trip Split" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="description" content="Split trip receipts, scan itemized bills, and settle group expenses." />
+    <title>Trip Split</title>
+    <link rel="manifest" href="manifest.json" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
+    <script src="app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="screen active" id="screen-home">
+        <header class="home-header">
+          <div>
+            <p class="eyebrow">Trip Split</p>
+            <h1>Group expenses</h1>
+          </div>
+          <button class="icon-button" id="resetApp" aria-label="Reset app" title="Reset app">
+            <i data-lucide="rotate-ccw"></i>
+          </button>
+        </header>
+
+        <section class="hero-card">
+          <div>
+            <span>Trip total</span>
+            <strong id="tripTotal">$0.00</strong>
+          </div>
+          <div>
+            <span>Receipts</span>
+            <strong id="receiptCount">0</strong>
+          </div>
+        </section>
+
+        <section class="panel group-panel">
+          <div class="section-title">
+            <h2 id="groupTitle">Trip group</h2>
+            <span id="groupStatus">Local only</span>
+          </div>
+          <div id="groupSignedOut" class="group-actions">
+            <input id="groupName" type="text" value="Weekend trip" aria-label="Group name" />
+            <input id="ownerName" type="text" value="You" aria-label="Your name" />
+            <button class="primary full" id="createGroup"><i data-lucide="link"></i><span>Create invite link</span></button>
+          </div>
+          <div id="groupSignedIn" class="hidden">
+            <p class="subtext" id="memberNameLabel"></p>
+            <div class="invite-box">
+              <input id="inviteLink" type="text" readonly aria-label="Invite link" />
+              <button class="small-primary" id="copyInvite"><i data-lucide="copy"></i><span>Copy</span></button>
+            </div>
+          </div>
+        </section>
+
+        <nav class="quick-nav" aria-label="Views">
+          <button data-screen="people"><i data-lucide="users"></i><span>People</span></button>
+          <button data-screen="totals"><i data-lucide="receipt-text"></i><span>Totals</span></button>
+          <button data-screen="settle"><i data-lucide="hand-coins"></i><span>Settle</span></button>
+        </nav>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>New receipt</h2>
+            <span id="rateStatus">Rates loading</span>
+          </div>
+          <div class="field-grid">
+            <label>
+              <span>Currency</span>
+              <select id="receiptCurrency">
+                <option value="USD">USD</option>
+                <option value="THB">THB</option>
+                <option value="VND">VND</option>
+              </select>
+            </label>
+            <label>
+              <span>Paid by</span>
+              <select id="paidBy"></select>
+            </label>
+          </div>
+        </section>
+
+        <div class="bottom-actions">
+          <label class="big-action scan-action">
+            <i data-lucide="scan-line"></i>
+            <span>Scan</span>
+            <input id="receiptImage" type="file" accept="image/*" capture="environment" />
+          </label>
+          <button class="big-action" id="openManual">
+            <i data-lucide="square-pen"></i>
+            <span>Manual entry</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-join">
+        <header class="flow-header">
+          <h1>Join trip</h1>
+        </header>
+        <section class="hero-card">
+          <div>
+            <span>Invite link</span>
+            <strong id="joinGroupName">Trip group</strong>
+          </div>
+        </section>
+        <section class="panel">
+          <h2>Create your account</h2>
+          <p class="subtext">Enter your name once. This device will remember you for this trip.</p>
+          <form id="joinGroupForm">
+            <label>
+              <span>Your name</span>
+              <input id="joinName" type="text" autocomplete="name" placeholder="Name" />
+            </label>
+            <button class="primary full"><i data-lucide="user-plus"></i><span>Join trip</span></button>
+          </form>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-manual">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Manual receipt</h1>
+        </header>
+
+        <div class="step-line">
+          <strong>Details</strong>
+          <span></span>
+        </div>
+
+        <section class="panel">
+          <h2>Receipt</h2>
+          <label>
+            <span>Name</span>
+            <input id="manualName" type="text" value="Dinner" />
+          </label>
+          <label>
+            <span>Date</span>
+            <input id="manualDate" type="date" />
+          </label>
+          <label>
+            <span>Location</span>
+            <input id="manualLocation" type="text" placeholder="Optional" />
+          </label>
+          <label>
+            <span>Description</span>
+            <input id="manualDescription" type="text" placeholder="Optional" />
+          </label>
+        </section>
+
+        <section class="panel">
+          <div class="section-title">
+            <h2>Items</h2>
+            <button class="small-primary" id="addManualItem"><i data-lucide="plus"></i><span>Add item</span></button>
+          </div>
+          <div id="manualItems" class="manual-items"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Tip, tax, fees</h2>
+          <div class="field-grid two">
+            <label>
+              <span>Tip</span>
+              <input id="manualTip" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+            <label>
+              <span>Tax</span>
+              <input id="manualTax" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+            <label>
+              <span>Fees</span>
+              <input id="manualFees" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+            <label>
+              <span>Discount</span>
+              <input id="manualDiscount" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+            </label>
+          </div>
+          <div class="review-card" id="manualReview"></div>
+          <button class="primary full" id="manualToItemize"><span>Continue</span><i data-lucide="arrow-right"></i></button>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-itemize">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1 id="itemizeTitle">Dinner</h1>
+        </header>
+
+        <section class="receipt-card">
+          <p>Receipt total</p>
+          <strong id="parsedTotal">$0.00</strong>
+          <span id="scanStatus"></span>
+        </section>
+
+        <section class="split-methods">
+          <button class="method active" data-split-mode="items">
+            <i data-lucide="list-checks"></i>
+            <span>Pick items</span>
+          </button>
+          <button class="method" data-split-mode="even">
+            <i data-lucide="users-round"></i>
+            <span>Split evenly</span>
+          </button>
+        </section>
+
+        <section class="panel" id="pickItemsPanel">
+          <div class="section-title">
+            <h2>Select items</h2>
+            <span id="itemCountLabel">0 items</span>
+          </div>
+          <div id="itemsList" class="items-list"></div>
+          <div id="feesList" class="fees-list"></div>
+        </section>
+
+        <section class="panel hidden" id="evenSplitPanel">
+          <div class="section-title">
+            <h2>Split total cost</h2>
+            <span id="evenPeopleLabel">0 people</span>
+          </div>
+          <div class="stepper">
+            <button id="decreaseSplit" aria-label="Decrease people"><i data-lucide="minus"></i></button>
+            <strong id="splitCount">2</strong>
+            <button id="increaseSplit" aria-label="Increase people"><i data-lucide="plus"></i></button>
+          </div>
+          <p class="subtext centered" id="splitEachLabel">$0.00 each</p>
+        </section>
+
+        <button class="sticky-submit" id="saveReceipt"><span id="saveReceiptLabel">Add to trip</span></button>
+      </section>
+
+      <section class="screen" id="screen-people">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>People</h1>
+        </header>
+        <section class="panel">
+          <form id="personForm" class="inline-form">
+            <input id="personName" type="text" placeholder="Name" autocomplete="off" />
+            <button class="primary icon-only" aria-label="Add person"><i data-lucide="plus"></i></button>
+          </form>
+          <div id="peopleList" class="people-list"></div>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-totals">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Totals</h1>
+        </header>
+        <section class="panel">
+          <div class="section-title">
+            <h2>Running totals</h2>
+            <span>USD</span>
+          </div>
+          <div id="totalsList" class="totals-list"></div>
+        </section>
+        <section class="panel">
+          <div class="section-title">
+            <h2>Receipts</h2>
+            <span id="historyCount">0</span>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-settle">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Settle up</h1>
+        </header>
+        <section class="panel">
+          <div class="section-title">
+            <h2>Net totals</h2>
+            <span>USD</span>
+          </div>
+          <div id="settlementList" class="settlement-list"></div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
