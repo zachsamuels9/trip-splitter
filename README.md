@@ -7,7 +7,7 @@ Trip Split is a mobile-first PWA for scanning trip receipts, letting each travel
 - Framework: vanilla HTML, CSS, and JavaScript
 - Runtime: Node.js serverless functions on Vercel
 - Package manager: pnpm
-- Shared data: Upstash Redis REST API
+- Shared data: Supabase Postgres through server-side API routes
 - OCR: OCR.space via a server-side API proxy
 
 ## Environment Variables
@@ -16,8 +16,8 @@ Copy `.env.example` to `.env.local` for local development and add the same varia
 
 ```bash
 OCR_SPACE_API_KEY=your_ocr_space_api_key
-UPSTASH_REDIS_REST_URL=https://your-upstash-redis-url.upstash.io
-UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 PORT=4174
 ```
 
@@ -27,12 +27,12 @@ The OCR key is only used by `/api/ocr`; it is never exposed in browser code.
 
 ```bash
 pnpm install
-OCR_SPACE_API_KEY=... UPSTASH_REDIS_REST_URL=... UPSTASH_REDIS_REST_TOKEN=... pnpm dev
+OCR_SPACE_API_KEY=... SUPABASE_URL=... SUPABASE_PUBLISHABLE_KEY=... pnpm dev
 ```
 
 Open `http://127.0.0.1:4174/`.
 
-For local-only group testing without Upstash, `server.js` stores data under `data/groups.json`. Vercel production uses Upstash Redis instead.
+If Supabase environment variables are missing or unavailable, the group API falls back to in-memory data for the running Node process. This keeps local smoke tests from crashing, but shared trips need Supabase for durable persistence.
 
 ## Checks
 
@@ -54,8 +54,8 @@ pnpm install
 
 ```bash
 pnpm dlx vercel env add OCR_SPACE_API_KEY
-pnpm dlx vercel env add UPSTASH_REDIS_REST_URL
-pnpm dlx vercel env add UPSTASH_REDIS_REST_TOKEN
+pnpm dlx vercel env add SUPABASE_URL
+pnpm dlx vercel env add SUPABASE_PUBLISHABLE_KEY
 ```
 
 3. Deploy a preview:

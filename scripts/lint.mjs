@@ -8,7 +8,7 @@ for (const file of jsFiles) {
 }
 
 const forbiddenPatterns = [
-  { file: "app.js", pattern: /helloworld|OCR_SPACE_API_KEY|UPSTASH_REDIS_REST_TOKEN/ },
+  { file: "app.js", pattern: /helloworld|OCR_SPACE_API_KEY|UPSTASH_REDIS_REST_TOKEN|SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY/ },
   { file: "index.html", pattern: /localhost|127\.0\.0\.1/ },
 ];
 

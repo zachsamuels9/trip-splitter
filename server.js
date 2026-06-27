@@ -1,11 +1,9 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
+const { addPerson, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("./lib/group-store");
 
 const root = __dirname;
-const dataDir = path.join(root, "data");
-const dataFile = path.join(dataDir, "groups.json");
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 
@@ -19,17 +17,6 @@ const mimeTypes = {
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
 };
-
-fs.mkdirSync(dataDir, { recursive: true });
-if (!fs.existsSync(dataFile)) fs.writeFileSync(dataFile, "{}");
-
-function readGroups() {
-  return JSON.parse(fs.readFileSync(dataFile, "utf8") || "{}");
-}
-
-function writeGroups(groups) {
-  fs.writeFileSync(dataFile, JSON.stringify(groups, null, 2));
-}
 
 function sendJson(res, status, value) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8" });
@@ -68,25 +55,6 @@ function readRawBody(req) {
   });
 }
 
-function publicGroup(group) {
-  return {
-    id: group.id,
-    name: group.name,
-    people: group.people,
-    receipts: group.receipts,
-    createdAt: group.createdAt,
-    updatedAt: group.updatedAt,
-  };
-}
-
-function createPerson(name) {
-  return {
-    id: crypto.randomUUID(),
-    name: String(name || "Guest").trim().slice(0, 60) || "Guest",
-    createdAt: new Date().toISOString(),
-  };
-}
-
 async function handleApi(req, res, url) {
   if (req.method === "POST" && url.pathname === "/api/ocr") {
     const apiKey = process.env.OCR_SPACE_API_KEY;
@@ -117,22 +85,10 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const groups = readGroups();
-
   if (req.method === "POST" && url.pathname === "/api/groups") {
     const body = await readBody(req);
-    const person = createPerson(body.personName || "You");
-    const group = {
-      id: crypto.randomBytes(5).toString("hex"),
-      name: String(body.name || "Trip group").trim().slice(0, 80) || "Trip group",
-      people: [person],
-      receipts: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    groups[group.id] = group;
-    writeGroups(groups);
-    sendJson(res, 201, { group: publicGroup(group), person });
+    const result = await createGroup(body);
+    sendJson(res, 201, result);
     return;
   }
 
@@ -142,40 +98,23 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const group = groups[groupMatch[1]];
-  if (!group) {
-    sendJson(res, 404, { error: "Group not found" });
-    return;
-  }
-
   if (req.method === "GET" && !groupMatch[2]) {
+    const group = await getRequiredGroup(groupMatch[1]);
     sendJson(res, 200, publicGroup(group));
     return;
   }
 
   if (req.method === "POST" && groupMatch[2] === "people") {
     const body = await readBody(req);
-    const person = createPerson(body.name);
-    group.people.push(person);
-    group.updatedAt = new Date().toISOString();
-    writeGroups(groups);
-    sendJson(res, 201, { group: publicGroup(group), person });
+    const result = await addPerson(groupMatch[1], body.name);
+    sendJson(res, 201, result);
     return;
   }
 
   if (req.method === "POST" && groupMatch[2] === "receipts") {
     const body = await readBody(req);
-    const receipt = body.receipt;
-    if (!receipt?.id) {
-      sendJson(res, 400, { error: "Receipt is required" });
-      return;
-    }
-    const index = group.receipts.findIndex((item) => item.id === receipt.id);
-    if (index >= 0) group.receipts[index] = receipt;
-    else group.receipts.unshift(receipt);
-    group.updatedAt = new Date().toISOString();
-    writeGroups(groups);
-    sendJson(res, 200, { group: publicGroup(group), receipt });
+    const result = await upsertReceipt(groupMatch[1], body.receipt);
+    sendJson(res, 200, result);
     return;
   }
 
