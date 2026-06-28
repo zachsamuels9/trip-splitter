@@ -1,5 +1,6 @@
 const storeKey = "trip-split-state-v2";
 const rateKey = "trip-split-rates-v1";
+const groupsKey = "trip-split-known-groups-v1";
 const supportedCurrencies = ["USD", "THB", "VND"];
 const defaultRates = { USD: 1, THB: 36.7, VND: 25400 };
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
@@ -15,12 +16,17 @@ let activeGroupId = currentGroupId();
 let activePersonId = activeGroupId ? readStorage(`trip-split-person-${activeGroupId}`) || "" : "";
 let activeGroup = null;
 let syncTimer = null;
+let deferredInstallPrompt = null;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 if (isBrowser) {
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredInstallPrompt = event;
+  });
   browserDocument.addEventListener("DOMContentLoaded", async () => {
     bindEvents();
     seedManualRows();
@@ -28,7 +34,7 @@ if (isBrowser) {
     refreshRates();
     await initGroup();
     render();
-    if (!activeGroupId || activePersonId) showScreen("home");
+    if (!activeGroupId || activePersonId) showScreen(activeGroupId ? "home" : "groups");
   });
 }
 
@@ -72,6 +78,32 @@ function saveState() {
 
 function saveRates() {
   writeStorage(rateKey, JSON.stringify(rates));
+}
+
+function loadKnownGroups() {
+  const saved = readStorage(groupsKey);
+  if (!saved) return [];
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return [];
+  }
+}
+
+function saveKnownGroups(groups) {
+  writeStorage(groupsKey, JSON.stringify(groups));
+}
+
+function rememberGroup(group, personId) {
+  if (!group?.id) return;
+  const groups = loadKnownGroups().filter((entry) => entry.id !== group.id);
+  groups.unshift({
+    id: group.id,
+    name: group.name || "Trip group",
+    personId: personId || readStorage(`trip-split-person-${group.id}`) || "",
+    updatedAt: new Date().toISOString(),
+  });
+  saveKnownGroups(groups.slice(0, 12));
 }
 
 function currentGroupId() {
@@ -142,6 +174,18 @@ function bindEvents() {
     render();
     showScreen("home");
   });
+  $("#newGroup").addEventListener("click", () => {
+    activeGroupId = "";
+    activePersonId = "";
+    activeGroup = null;
+    state = defaultState();
+    render();
+    showScreen("home");
+  });
+  $("#installNative").addEventListener("click", promptInstall);
+  $("#installDone").addEventListener("click", () => showScreen("home"));
+  $("#showInstallHelp").addEventListener("click", () => showScreen("install"));
+  $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
 
   $("#openManual").addEventListener("click", () => {
     setTodayIfBlank();
@@ -170,7 +214,8 @@ function bindEvents() {
   $("#addManualItem").addEventListener("click", () => addManualItem());
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
   $("#addParsedItem").addEventListener("click", addParsedItem);
-  $("#saveReceipt").addEventListener("click", () => saveReceipt(false));
+  $("#reviewSelections").addEventListener("click", reviewSelections);
+  $("#acceptSelections").addEventListener("click", () => saveReceipt(false));
   $("#saveLaterReceipt").addEventListener("click", () => saveReceipt(true));
   $("#confirmationHome").addEventListener("click", () => showScreen("home"));
   $("#confirmationAddAnother").addEventListener("click", () => {
@@ -184,7 +229,7 @@ function bindEvents() {
     $(`#${id}`).addEventListener("input", renderManualReview);
   });
 
-  ["reviewName", "reviewDate", "reviewLocation"].forEach((id) => {
+  ["reviewName", "reviewDate", "reviewNotes"].forEach((id) => {
     $(`#${id}`).addEventListener("input", updateParsedDetails);
   });
   $("#reviewCurrency").addEventListener("change", updateParsedCurrency);
@@ -252,7 +297,12 @@ async function initGroup() {
 
 async function createGroup() {
   const name = $("#groupName").value.trim() || "Trip group";
-  const personName = $("#ownerName").value.trim() || "You";
+  const personName = $("#ownerName").value.trim();
+  if (!personName) {
+    safeAlert("Enter your name to create the trip.");
+    $("#ownerName").focus();
+    return;
+  }
   try {
     const result = await api("/api/groups", {
       method: "POST",
@@ -262,10 +312,13 @@ async function createGroup() {
     activePersonId = result.person.id;
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+    writeStorage(`trip-split-owner-${activeGroupId}`, activePersonId);
     if (isBrowser) window.history.replaceState(null, "", inviteUrl());
     applyGroup(result.group);
+    rememberGroup(result.group, activePersonId);
     startSync();
     render();
+    showScreen("install");
   } catch {
     safeAlert("Could not create a shared group. Start the Trip Split server and try again.");
   }
@@ -284,9 +337,10 @@ async function joinGroup(event) {
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     applyGroup(result.group);
+    rememberGroup(result.group, activePersonId);
     startSync();
     render();
-    showScreen("home");
+    showScreen("install");
   } catch {
     safeAlert("Could not join this trip. Check that the invite server is running.");
   }
@@ -344,6 +398,7 @@ function applyGroup(group) {
   state.people = group.people;
   state.receipts = group.receipts;
   saveState();
+  rememberGroup(group, activePersonId);
 }
 
 function startSync() {
@@ -395,7 +450,7 @@ async function scanImage(event) {
     parsedReceipt = parseReceipt(text, detectedCurrency, {
       name: restaurantName || "Scanned receipt",
       restaurantName,
-      date: new Date().toISOString().slice(0, 10),
+      date: detectReceiptDate(text) || new Date().toISOString().slice(0, 10),
       source: "scan",
       imageDataUrl,
     });
@@ -511,8 +566,10 @@ function parseReceipt(text, currency, meta = {}) {
       return;
     }
 
-    if (/(tax|vat|gst|service|fee|charge|tip|gratuity|surcharge)/i.test(normalized)) {
-      fees.push({ id: entry.id, name: entry.name, amount: Math.abs(amount.value) });
+    const adjustment = adjustmentKind(normalized);
+    if (adjustment) {
+      if (adjustment === "discount") discount += Math.abs(amount.value);
+      else fees.push({ id: entry.id, name: adjustmentLabel(adjustment), amount: Math.abs(amount.value) });
       return;
     }
 
@@ -532,6 +589,28 @@ function parseReceipt(text, currency, meta = {}) {
     fees,
     discount,
   };
+}
+
+function adjustmentKind(text) {
+  if (/(discount|promo|coupon|comp|reward|credit)/i.test(text)) return "discount";
+  if (/(tip|gratuity)/i.test(text)) return "tip";
+  if (/(tax|vat|gst|hst|sales tax)/i.test(text)) return "tax";
+  if (/(service|fee|charge|surcharge|delivery|convenience)/i.test(text)) return "fees";
+  return "";
+}
+
+function detectReceiptDate(text) {
+  const sample = text || "";
+  const iso = sample.match(/\b(20\d{2}|19\d{2})[-/.](0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])\b/);
+  if (iso) return normalizeDateParts(iso[1], iso[2], iso[3]);
+  const us = sample.match(/\b(0?[1-9]|1[0-2])[-/.](0?[1-9]|[12]\d|3[01])[-/.]((?:20)?\d{2})\b/);
+  if (us) return normalizeDateParts(us[3], us[1], us[2]);
+  return "";
+}
+
+function normalizeDateParts(year, month, day) {
+  const fullYear = String(year).length === 2 ? `20${year}` : String(year);
+  return `${fullYear.padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function detectCurrency(text, fallback = "USD") {
@@ -733,7 +812,6 @@ function buildManualReceipt() {
     currency: $("#receiptCurrency").value,
     name: $("#manualName").value.trim() || "Dinner",
     date: $("#manualDate").value || new Date().toISOString().slice(0, 10),
-    location: $("#manualLocation").value.trim(),
     description: $("#manualDescription").value.trim(),
     source: "manual",
     imageDataUrl: "",
@@ -761,7 +839,17 @@ function renderAssignment() {
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
   $("#splitCount").textContent = splitCount;
-  $("#saveLaterReceipt").classList.toggle("hidden", splitMode === "even");
+  $("#saveLaterReceipt").classList.toggle("hidden", Boolean(editingReceiptId) || splitMode === "even");
+  $("#itemizeReceiptImage").classList.toggle("hidden", !parsedReceipt.imageDataUrl);
+  if (parsedReceipt.imageDataUrl) {
+    $("#itemizeReceiptImage").src = parsedReceipt.imageDataUrl;
+    $("#itemizeReceiptDownload").href = parsedReceipt.imageDataUrl;
+    $("#itemizeReceiptDownload").classList.remove("hidden");
+  } else {
+    $("#itemizeReceiptDownload").classList.add("hidden");
+  }
+  const payer = findPerson(parsedReceipt.paidBy || $("#reviewPaidBy").value);
+  $("#parsedPaidBy").textContent = payer ? `${payer.name} paid for this tab` : "";
 
   $("#itemsList").innerHTML = parsedReceipt.items.length
     ? parsedReceipt.items
@@ -818,7 +906,11 @@ function renderAssignment() {
           personBox.checked = box.checked;
         });
       }
+      updateSelectionBar();
     });
+  });
+  $$("[data-item]").forEach((box) => {
+    box.addEventListener("change", updateSelectionBar);
   });
   $$("[data-delete-item]").forEach((button) => {
     button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
@@ -830,6 +922,7 @@ function renderAssignment() {
     input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
   });
   makeIcons();
+  updateSelectionBar();
 }
 
 function syncReviewFields() {
@@ -839,7 +932,7 @@ function syncReviewFields() {
   if (parsedReceipt.paidBy) $("#reviewPaidBy").value = parsedReceipt.paidBy;
   else if (activePersonId && state.people.some((person) => person.id === activePersonId)) $("#reviewPaidBy").value = activePersonId;
   setReviewValue("reviewDate", parsedReceipt.date || "");
-  setReviewValue("reviewLocation", parsedReceipt.location || "");
+  setReviewValue("reviewNotes", parsedReceipt.description || "");
   setReviewValue("reviewTip", adjustmentAmount("tip"));
   setReviewValue("reviewTax", adjustmentAmount("tax"));
   setReviewValue("reviewFees", adjustmentAmount("fees"));
@@ -851,7 +944,7 @@ function renderReceiptTotals() {
   const total = receiptTotal(parsedReceipt);
   $("#parsedTotal").textContent = formatNative(total, parsedReceipt.currency);
   $("#splitEachLabel").textContent = `${formatNative(total / splitCount, parsedReceipt.currency)} each`;
-  $("#saveReceiptLabel").textContent = splitMode === "even" ? `Split ${formatNative(total, parsedReceipt.currency)}` : "Add to trip";
+  $("#saveReceiptLabel").textContent = splitMode === "even" ? `Review ${formatNative(total, parsedReceipt.currency)}` : "Review selections";
 }
 
 function renderFeesList() {
@@ -879,7 +972,7 @@ function updateParsedDetails() {
   if (!parsedReceipt) return;
   parsedReceipt.name = $("#reviewName").value.trim() || "Receipt";
   parsedReceipt.date = $("#reviewDate").value || new Date().toISOString().slice(0, 10);
-  parsedReceipt.location = $("#reviewLocation").value.trim();
+  parsedReceipt.description = $("#reviewNotes").value.trim();
   $("#itemizeTitle").textContent = parsedReceipt.name;
 }
 
@@ -965,6 +1058,67 @@ function updateSplitCount(next) {
   renderAssignment();
 }
 
+function collectAssignmentChoices() {
+  if (!parsedReceipt) return;
+  parsedReceipt.items.forEach((item) => {
+    item.assignedTo = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
+  });
+}
+
+function selectedItemsForActivePerson() {
+  if (!parsedReceipt) return [];
+  const personId = activePersonId || $("#reviewPaidBy").value;
+  return parsedReceipt.items.filter((item) => (item.assignedTo || []).includes(personId));
+}
+
+function selectedNativeTotal() {
+  if (!parsedReceipt) return 0;
+  return sum(selectedItemsForActivePerson().map((item) => item.amount)) + selectedAdjustmentShare();
+}
+
+function selectedAdjustmentShare() {
+  if (!parsedReceipt) return 0;
+  const selectedSubtotal = sum(selectedItemsForActivePerson().map((item) => item.amount));
+  const subtotal = sum(parsedReceipt.items.map((item) => item.amount));
+  if (!selectedSubtotal || !subtotal) return 0;
+  return (sum(parsedReceipt.fees.map((fee) => fee.amount)) - (parsedReceipt.discount || 0)) * (selectedSubtotal / subtotal);
+}
+
+function updateSelectionBar() {
+  if (!parsedReceipt) return;
+  collectAssignmentChoices();
+  const hasSelection = splitMode === "even" || selectedItemsForActivePerson().length > 0;
+  $("#selectionTotal").classList.toggle("hidden", !hasSelection);
+  $("#reviewSelections").classList.toggle("hidden", !hasSelection);
+  $("#selectionTotal").textContent = `Selected ${formatNative(selectedNativeTotal(), parsedReceipt.currency)}`;
+}
+
+function reviewSelections() {
+  if (!parsedReceipt) return;
+  collectAssignmentChoices();
+  if (splitMode === "even") {
+    $("#selectionReviewTotal").textContent = formatNative(receiptTotal(parsedReceipt) / Math.max(1, splitCount), parsedReceipt.currency);
+    $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · split evenly`;
+    $("#selectionReviewCount").textContent = `${splitCount} people`;
+    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share</span><strong>${formatNative(receiptTotal(parsedReceipt) / Math.max(1, splitCount), parsedReceipt.currency)}</strong></div>`;
+    showScreen("selection-review");
+    return;
+  }
+  const items = selectedItemsForActivePerson();
+  if (!items.length) return;
+  const adjustment = selectedAdjustmentShare();
+  $("#selectionReviewTotal").textContent = formatNative(selectedNativeTotal(), parsedReceipt.currency);
+  $("#selectionReviewReceipt").textContent = parsedReceipt.name || "Receipt";
+  $("#selectionReviewCount").textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
+  $("#selectionReviewList").innerHTML = [
+    ...items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount, parsedReceipt.currency)}</strong></div>`),
+    adjustment ? `<div class="fee-row"><span>Tip, tax, fees, discounts</span><strong>${formatNative(adjustment, parsedReceipt.currency)}</strong></div>` : "",
+  ]
+    .filter(Boolean)
+    .join("");
+  showScreen("selection-review");
+}
+
 function saveReceipt(assignLater = false) {
   if (!parsedReceipt) return;
   const paidBy = $("#reviewPaidBy").value;
@@ -984,11 +1138,9 @@ function saveReceipt(assignLater = false) {
     });
     parsedReceipt.splitEvenCount = splitCount;
   } else {
-    parsedReceipt.items.forEach((item) => {
-      item.assignedTo = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
-    });
-    if (parsedReceipt.items.some((item) => item.assignedTo.length === 0)) {
-      safeAlert("Every item needs at least one person selected, or choose Split evenly.");
+    collectAssignmentChoices();
+    if (!parsedReceipt.items.some((item) => item.assignedTo.length > 0)) {
+      safeAlert("Select at least one item to log.");
       return;
     }
   }
@@ -1008,7 +1160,7 @@ function saveReceipt(assignLater = false) {
     paidBy,
     splitMode: savedSplitMode,
     splitCount: assignLater ? null : splitCount,
-    assignmentStatus: assignLater ? "pending" : "complete",
+    assignmentStatus: assignLater || parsedReceipt.items.some((item) => !item.assignedTo.length) ? "pending" : "complete",
     items: parsedReceipt.items,
     fees: parsedReceipt.fees,
     discount: parsedReceipt.discount || 0,
@@ -1088,6 +1240,7 @@ function toUsd(amount, currency) {
 
 function render() {
   renderGroupUi();
+  renderGroups();
   renderPeopleOptions();
   renderPeople();
   renderPendingReceipts();
@@ -1096,11 +1249,14 @@ function render() {
   renderSettlements();
   renderSummary();
   renderManualReview();
+  renderExpenses();
   makeIcons();
 }
 
 function renderGroupUi() {
   const signedIn = Boolean(activeGroupId && activePersonId && activeGroup);
+  $("#resetApp").classList.add("hidden");
+  $("#homeGroupSetup").classList.toggle("hidden", signedIn);
   $("#groupSignedOut").classList.toggle("hidden", signedIn);
   $("#groupSignedIn").classList.toggle("hidden", !signedIn);
   if (!signedIn) {
@@ -1113,6 +1269,42 @@ function renderGroupUi() {
   $("#groupStatus").textContent = "Shared";
   $("#memberNameLabel").textContent = `Signed in as ${person?.name || "Guest"}`;
   $("#inviteLink").value = inviteUrl();
+  $("#resetApp").classList.toggle("hidden", readStorage(`trip-split-owner-${activeGroupId}`) !== activePersonId);
+}
+
+function renderGroups() {
+  const groups = loadKnownGroups();
+  $("#groupsList").innerHTML = groups.length
+    ? groups
+        .map(
+          (group) => `
+            <article class="group-row ${group.id === activeGroupId ? "active" : ""}">
+              <div>
+                <div class="row-name">${escapeHtml(group.name)}</div>
+                <div class="subtext">${group.id === activeGroupId ? "Current trip" : "Tap to switch"}</div>
+              </div>
+              <button class="small-primary" data-switch-group="${group.id}"><i data-lucide="arrow-right"></i><span>Open</span></button>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty">Create or join a trip to see it here.</div>`;
+
+  $$("[data-switch-group]").forEach((button) => {
+    button.addEventListener("click", () => switchGroup(button.dataset.switchGroup));
+  });
+}
+
+async function switchGroup(groupId) {
+  const known = loadKnownGroups().find((group) => group.id === groupId);
+  if (!known) return;
+  activeGroupId = groupId;
+  activePersonId = known.personId || readStorage(`trip-split-person-${groupId}`) || "";
+  writeStorage("trip-split-group-id", groupId);
+  if (activePersonId) writeStorage(`trip-split-person-${groupId}`, activePersonId);
+  await initGroup();
+  render();
+  showScreen(activePersonId ? "home" : "join");
 }
 
 function renderPeopleOptions() {
@@ -1174,7 +1366,7 @@ function renderTotals() {
             <div class="total-row">
               <div>
                 <div class="row-name">${escapeHtml(person.name)}</div>
-                <div class="subtext">Share ${money.format(totals.owed)} · Paid ${money.format(totals.paid)}</div>
+                <div class="subtext">${possessive(person.name)} share ${money.format(totals.owed)} · Paid ${money.format(totals.paid)}</div>
               </div>
               <div class="money ${balance >= 0 ? "positive" : "negative"}">${money.format(balance)}</div>
             </div>
@@ -1290,7 +1482,42 @@ function renderSummary() {
   const personId = activePersonId || state.people[0]?.id;
   const person = findPerson(personId);
   const totals = personId ? personTotals(personId) : { owed: 0 };
-  $("#personalTotal").textContent = `${person?.name || "Your"} share ${money.format(totals.owed)}`;
+  $("#personalTotal").textContent = `${person ? possessive(person.name) : "Your"} share ${money.format(totals.owed)}`;
+}
+
+function renderExpenses() {
+  const personId = activePersonId || state.people[0]?.id;
+  const person = findPerson(personId);
+  const rows = [];
+  let total = 0;
+  state.receipts.forEach((receipt) => {
+    if (isPendingReceipt(receipt)) return;
+    (receipt.items || []).forEach((item) => {
+      if (!(item.assignedTo || []).includes(personId)) return;
+      const share = item.amount / Math.max(1, item.assignedTo.length);
+      total += toUsd(share, receipt.currency);
+      rows.push({ receipt, item, share });
+    });
+  });
+  $("#expensesTitle").textContent = person ? `${possessive(person.name)} items` : "Your items";
+  $("#expensesTotal").textContent = money.format(total);
+  $("#expensesList").innerHTML = rows.length
+    ? rows
+        .map(
+          ({ receipt, item, share }) => `
+            <article class="history-row">
+              <div class="row-head">
+                <div>
+                  <div class="row-name">${escapeHtml(item.name)}</div>
+                  <div class="subtext">${escapeHtml(receipt.name || "Receipt")} · ${new Date(receipt.date || receipt.createdAt).toLocaleDateString()}</div>
+                </div>
+                <div class="money">${formatNative(share, receipt.currency)}</div>
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty">Your accepted expenses will appear here.</div>`;
 }
 
 function personTotals(personId) {
@@ -1348,6 +1575,9 @@ function showConfirmation(receipt, assignedLater) {
   $("#confirmationTitle").textContent = receipt.name || "Receipt";
   $("#confirmationDetail").textContent = `${formatNative(receipt.totalNative, receipt.currency)} logged${assignedLater ? " · pending item assignments" : ""}`;
   showScreen("confirmation");
+  if (!assignedLater && isBrowser) {
+    window.setTimeout(() => showScreen("expenses"), 1200);
+  }
 }
 
 function findPerson(personId) {
@@ -1366,6 +1596,45 @@ function formatNative(amount, currency) {
 function formatRate(currency, rate) {
   if (currency === "USD") return "1 USD";
   return `1 USD = ${Number(rate).toLocaleString("en-US", { maximumFractionDigits: currency === "VND" ? 0 : 2 })} ${currency}`;
+}
+
+function possessive(name) {
+  const clean = String(name || "Your").trim();
+  if (!clean || clean.toLowerCase() === "your") return "Your";
+  return `${clean}${clean.endsWith("s") ? "'" : "'s"}`;
+}
+
+async function promptInstall() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => null);
+    deferredInstallPrompt = null;
+    showScreen("home");
+    return;
+  }
+  $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
+    ? "Tap Share in Safari, then Add to Home Screen."
+    : "Open your browser menu and choose Install app or Add to Home Screen.";
+}
+
+function downloadAllReceipts() {
+  const receipts = state.receipts.filter((receipt) => receipt.imageDataUrl);
+  if (!receipts.length) {
+    safeAlert("No saved receipt photos yet.");
+    return;
+  }
+  receipts.forEach((receipt, index) => {
+    const link = browserDocument.createElement("a");
+    link.href = receipt.imageDataUrl;
+    link.download = `${safeFileName(receipt.name || "receipt")}-${index + 1}.png`;
+    browserDocument.body.appendChild(link);
+    link.click();
+    link.remove();
+  });
+}
+
+function safeFileName(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "receipt";
 }
 
 function toTitle(text) {
