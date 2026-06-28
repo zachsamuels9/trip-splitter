@@ -18,6 +18,8 @@ let activePersonId = activeGroupId ? readStorage(`trip-split-person-${activeGrou
 let activeGroup = null;
 let syncTimer = null;
 let deferredInstallPrompt = null;
+let installReturnScreen = "home";
+const settingsReturnScreens = new Set();
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -35,7 +37,11 @@ if (isBrowser) {
     refreshRates();
     await initGroup();
     render();
-    if (!activeGroupId || activePersonId) showScreen(activeGroupId ? "home" : "groups");
+    if (isStartRoute() && !activeGroupId) {
+      showStartOnboarding();
+    } else if (!activeGroupId || activePersonId) {
+      showScreen(activeGroupId ? "home" : "groups");
+    }
   });
 }
 
@@ -118,6 +124,11 @@ function currentGroupId() {
   }
 }
 
+function isStartRoute() {
+  if (!isBrowser) return false;
+  return window.location.pathname.replace(/\/$/, "") === "/start";
+}
+
 function readStorage(key) {
   if (!isBrowser) return null;
   try {
@@ -157,7 +168,12 @@ function createId() {
 
 function bindEvents() {
   $$("[data-screen]").forEach((button) => {
-    button.addEventListener("click", () => showScreen(button.dataset.screen));
+    button.addEventListener("click", () => {
+      const active = $(".screen.active")?.id;
+      const target = button.dataset.screen;
+      if (active === "screen-settings" && ["people", "totals"].includes(target)) settingsReturnScreens.add(target);
+      showScreen(target);
+    });
   });
 
   $("#resetApp").addEventListener("click", () => {
@@ -182,13 +198,21 @@ function bindEvents() {
     activeGroup = null;
     state = defaultState();
     render();
-    showScreen("home");
+    if (isBrowser) window.history.pushState(null, "", "/start");
+    showStartOnboarding();
   });
   $("#installNative").addEventListener("click", promptInstall);
+  $("#installBack").addEventListener("click", () => showScreen(installReturnScreen));
   $("#installCopyInvite").addEventListener("click", copyInviteLink);
-  $("#installDone").addEventListener("click", () => showScreen("home"));
-  $("#showInstallHelp").addEventListener("click", () => showScreen("install"));
-  $("#settingsInvite").addEventListener("click", () => showScreen("install"));
+  $("#installDone").addEventListener("click", () => showScreen(installReturnScreen));
+  $("#showInstallHelp").addEventListener("click", () => {
+    installReturnScreen = "settings";
+    showScreen("install");
+  });
+  $("#settingsInvite").addEventListener("click", () => {
+    installReturnScreen = "settings";
+    showScreen("install");
+  });
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
   $("#closeTrip").addEventListener("click", closeTrip);
   $("#itemizeReceiptPreview").addEventListener("click", openReceiptImagePreview);
@@ -203,13 +227,8 @@ function bindEvents() {
     showScreen("scan");
   });
 
-  $("#personForm").addEventListener("submit", (event) => {
+  $("#personForm")?.addEventListener("submit", (event) => {
     event.preventDefault();
-    const input = $("#personName");
-    const name = input.value.trim();
-    if (!name) return;
-    addPerson(name);
-    input.value = "";
   });
 
   $("#createGroup").addEventListener("click", createGroup);
@@ -252,10 +271,26 @@ function bindEvents() {
 }
 
 function showScreen(name) {
+  browserDocument?.body.classList.remove("start-onboarding");
+  updateBackTargets(name);
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
   if (name === "install") renderInstallScreen();
   if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
+}
+
+function updateBackTargets(name) {
+  ["people", "totals"].forEach((screenName) => {
+    const button = $(`#screen-${screenName} .back-button`);
+    if (button) button.dataset.screen = settingsReturnScreens.has(screenName) ? "settings" : "home";
+  });
+  if (name === "home") settingsReturnScreens.clear();
+}
+
+function showStartOnboarding() {
+  browserDocument?.body.classList.add("start-onboarding");
+  showScreen("home");
+  browserDocument?.body.classList.add("start-onboarding");
 }
 
 async function refreshRates() {
@@ -274,7 +309,7 @@ async function refreshRates() {
       rates: nextRates,
     };
     saveRates();
-    updateRateStatus("Live rates ready");
+    updateRateStatus("⇄ Rates online");
   } catch {
     updateRateStatus(rates.updatedAt ? "Using saved rates" : "Using starter rates");
   }
@@ -326,6 +361,7 @@ async function createGroup() {
     rememberGroup(result.group, activePersonId);
     startSync();
     render();
+    installReturnScreen = "home";
     showScreen("install");
   } catch {
     safeAlert("Could not create a shared group. Start the Trip Split server and try again.");
@@ -348,6 +384,7 @@ async function joinGroup(event) {
     rememberGroup(result.group, activePersonId);
     startSync();
     render();
+    installReturnScreen = "home";
     showScreen("install");
   } catch {
     safeAlert("Could not join this trip. Check that the invite server is running.");
@@ -459,7 +496,8 @@ async function scanImage(event) {
 
   try {
     const imageDataUrl = await fileToDataUrl(file);
-    const text = await readReceiptText(file, imageDataUrl);
+    const ocr = await readReceiptText(file, imageDataUrl);
+    const text = ocr.text;
     const detectedCurrency = detectCurrency(text, $("#receiptCurrency").value);
     $("#receiptCurrency").value = detectedCurrency;
     const restaurantName = detectRestaurantName(text);
@@ -479,7 +517,7 @@ async function scanImage(event) {
     }
     splitMode = "items";
     setSplitMode("items");
-    updateScanProgress("Items found", `${parsedReceipt.items.length} items found in ${detectedCurrency}.`, false);
+    updateScanProgress("Items found", `${parsedReceipt.items.length} items found in ${detectedCurrency} with ${ocr.provider}.`, false);
     showScreen("itemize");
     renderAssignment();
   } catch {
@@ -503,7 +541,7 @@ async function readReceiptText(file, imageDataUrl) {
         }
       },
     });
-    return result.data.text;
+    return { provider: "backup scanner", text: result.data.text };
   }
 }
 
@@ -532,7 +570,7 @@ async function readWithRemoteOcr(imageDataUrl) {
   if (!response.ok) throw new Error("Remote OCR failed");
   const data = await response.json();
   if (!data.text) throw new Error("No OCR text");
-  return data.text;
+  return { provider: data.provider || "receipt OCR", text: data.text };
 }
 
 function prepareScanReceipt() {
@@ -774,19 +812,24 @@ function addManualItem(name = "", qty = 1, price = "") {
 }
 
 function getManualDraft() {
-  const items = $$(".manual-row")
+  const rows = $$(".manual-row").map((row) => {
+    const name = row.querySelector('[data-field="name"]').value.trim();
+    const qty = Number(row.querySelector('[data-field="qty"]').value || 0);
+    const price = Number(row.querySelector('[data-field="price"]').value || 0);
+    const touched = Boolean(name || row.querySelector('[data-field="price"]').value || row.querySelector('[data-field="qty"]').value !== "1");
+    const incomplete = touched && (!name || price <= 0);
+    return { row, name, qty, price, touched, incomplete, total: qty * price };
+  });
+  const items = rows
     .map((row) => {
-      const name = row.querySelector('[data-field="name"]').value.trim();
-      const qty = Number(row.querySelector('[data-field="qty"]').value || 0);
-      const price = Number(row.querySelector('[data-field="price"]').value || 0);
-      return { row, name, qty, price, total: qty * price };
+      return row;
     })
     .filter((item) => item.name && item.qty > 0 && item.price > 0);
   const tip = Number($("#manualTip").value || 0);
   const tax = Number($("#manualTax").value || 0);
   const fees = Number($("#manualFees").value || 0);
   const discount = Number($("#manualDiscount").value || 0);
-  return { items, tip, tax, fees, discount };
+  return { items, incompleteRows: rows.filter((row) => row.incomplete), tip, tax, fees, discount };
 }
 
 function renderManualReview() {
@@ -810,6 +853,10 @@ function renderManualReview() {
 
 function buildManualReceipt() {
   const draft = getManualDraft();
+  if (draft.incompleteRows.length) {
+    safeAlert("Finish the item name and unit price for any row you started, or leave it blank.");
+    return;
+  }
   if (!draft.items.length) {
     safeAlert("Add at least one priced item.");
     return;
@@ -844,6 +891,7 @@ function buildManualReceipt() {
 function renderAssignment() {
   if (!parsedReceipt) return;
   syncReviewFields();
+  renderReviewSummary();
   $("#itemizeTitle").textContent = parsedReceipt.name || "Receipt";
   renderReceiptTotals();
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
@@ -853,10 +901,8 @@ function renderAssignment() {
   $("#itemizeReceiptPreview").classList.toggle("hidden", !parsedReceipt.imageDataUrl);
   if (parsedReceipt.imageDataUrl) {
     $("#itemizeReceiptImage").src = parsedReceipt.imageDataUrl;
-    $("#itemizeReceiptDownload").href = parsedReceipt.imageDataUrl;
-    $("#itemizeReceiptDownload").classList.remove("hidden");
   } else {
-    $("#itemizeReceiptDownload").classList.add("hidden");
+    $("#itemizeReceiptImage").removeAttribute("src");
   }
   const payer = findPerson(parsedReceipt.paidBy || $("#reviewPaidBy").value);
   $("#parsedPaidBy").textContent = payer ? `${payer.name} paid for this tab` : "";
@@ -872,17 +918,14 @@ function renderAssignment() {
                 <i data-lucide="trash-2"></i>
               </button>
               <div class="item-head">
-                <label class="item-checkbox">
-                  <input type="checkbox" data-item-pick="${item.id}" ${activePersonId && item.assignedTo?.includes(activePersonId) ? "checked" : ""}>
-                  <span></span>
-                </label>
                 <div class="parsed-item-fields">
                   <label>
                     <span>Item</span>
                     <input data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" />
                   </label>
-                  <label>
+                  <label class="currency-input">
                     <span>Amount</span>
+                    <em>${currencySymbol(parsedReceipt.currency)}</em>
                     <input data-edit-item-amount="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(item.amount)}" />
                   </label>
                 </div>
@@ -907,20 +950,6 @@ function renderAssignment() {
 
   renderFeesList();
 
-  $$("[data-item-pick]").forEach((box) => {
-    box.addEventListener("change", () => {
-      const id = box.dataset.itemPick;
-      if (activePersonId) {
-        const mine = $(`input[data-item="${id}"][data-person="${activePersonId}"]`);
-        if (mine) mine.checked = box.checked;
-      } else {
-        $$(`input[data-item="${id}"]`).forEach((personBox) => {
-          personBox.checked = box.checked;
-        });
-      }
-      updateSelectionBar();
-    });
-  });
   $$("[data-item]").forEach((box) => {
     box.addEventListener("change", updateSelectionBar);
   });
@@ -954,8 +983,9 @@ function syncReviewFields() {
 function renderReceiptTotals() {
   if (!parsedReceipt) return;
   const total = receiptTotal(parsedReceipt);
+  const evenCount = splitMode === "even" ? Math.max(1, splitEvenPeople.length || splitCount) : splitCount;
   $("#parsedTotal").textContent = formatNative(total, parsedReceipt.currency);
-  $("#splitEachLabel").textContent = `${formatNative(total / splitCount, parsedReceipt.currency)} each`;
+  $("#splitEachLabel").textContent = `${formatNative(total / evenCount, parsedReceipt.currency)} each`;
   $("#saveReceiptLabel").textContent = splitMode === "even" ? `Review ${formatNative(total, parsedReceipt.currency)}` : "Review selections";
 }
 
@@ -974,6 +1004,20 @@ function renderFeesList() {
     : `<div class="fee-row"><span>No separate tip, tax, or fees</span><strong>${formatNative(0, parsedReceipt.currency)}</strong></div>`;
 }
 
+function renderReviewSummary() {
+  if (!parsedReceipt) return;
+  const payer = findPerson(parsedReceipt.paidBy || $("#reviewPaidBy").value)?.name || "Not set";
+  $("#reviewSummary").innerHTML = `
+    <div><span>Name</span><strong>${escapeHtml(parsedReceipt.name || "Receipt")}</strong></div>
+    <div><span>Date</span><strong>${escapeHtml(parsedReceipt.date || "Not set")}</strong></div>
+    <div><span>Paid by</span><strong>${escapeHtml(payer)}</strong></div>
+    <div><span>Currency</span><strong>${escapeHtml(parsedReceipt.currency || "USD")}</strong></div>
+    <div><span>Tip / tax / fees</span><strong>${formatNative(sum(parsedReceipt.fees.map((fee) => fee.amount)), parsedReceipt.currency)}</strong></div>
+    <div><span>Discount</span><strong>${formatNative(parsedReceipt.discount || 0, parsedReceipt.currency)}</strong></div>
+    ${parsedReceipt.description ? `<div><span>Notes</span><strong>${escapeHtml(parsedReceipt.description)}</strong></div>` : ""}
+  `;
+}
+
 function setReviewValue(id, value) {
   const input = $(`#${id}`);
   if (browserDocument?.activeElement === input) return;
@@ -986,6 +1030,7 @@ function updateParsedDetails() {
   parsedReceipt.date = $("#reviewDate").value || new Date().toISOString().slice(0, 10);
   parsedReceipt.description = $("#reviewNotes").value.trim();
   $("#itemizeTitle").textContent = parsedReceipt.name;
+  renderReviewSummary();
 }
 
 function updateParsedCurrency() {
@@ -1002,6 +1047,7 @@ function updateParsedAdjustments() {
   parsedReceipt.discount = Number($("#reviewDiscount").value || 0);
   renderReceiptTotals();
   renderFeesList();
+  renderReviewSummary();
 }
 
 function adjustmentAmount(type) {
@@ -1171,24 +1217,28 @@ function updateSelectionBar() {
 function reviewSelections() {
   if (!parsedReceipt) return;
   collectAssignmentChoices();
+  const selector = findPerson(activePersonId || $("#reviewPaidBy").value)?.name || "Your";
+  $("#selectionReviewTitle").textContent = `${possessive(selector)} selected items`;
   if (splitMode === "even") {
     const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
-    $("#selectionReviewTotal").textContent = formatNative(receiptTotal(parsedReceipt) / Math.max(1, people.length), parsedReceipt.currency);
+    const nativeTotal = receiptTotal(parsedReceipt) / Math.max(1, people.length);
+    $("#selectionReviewTotal").textContent = formatNative(nativeTotal, parsedReceipt.currency);
     $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · split evenly`;
     $("#selectionReviewCount").textContent = `${people.length} people`;
-    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share</span><strong>${formatNative(receiptTotal(parsedReceipt) / Math.max(1, people.length), parsedReceipt.currency)}</strong></div>`;
+    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share</span><strong>${formatNative(nativeTotal, parsedReceipt.currency)}</strong></div>${convertedLine(nativeTotal, parsedReceipt.currency)}`;
     showScreen("selection-review");
     return;
   }
   if (splitMode === "amounts") {
     const entries = $$("[data-amount-person]").map((input) => ({ personId: input.dataset.amountPerson, amount: Number(input.value || 0) })).filter((entry) => entry.amount > 0);
     parsedReceipt.amountSplits = Object.fromEntries(entries.map((entry) => [entry.personId, entry.amount]));
-    $("#selectionReviewTotal").textContent = formatNative(parsedReceipt.amountSplits[activePersonId] || 0, parsedReceipt.currency);
+    const nativeTotal = parsedReceipt.amountSplits[activePersonId] || 0;
+    $("#selectionReviewTotal").textContent = formatNative(nativeTotal, parsedReceipt.currency);
     $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · specific amounts`;
     $("#selectionReviewCount").textContent = `${entries.length} people`;
     $("#selectionReviewList").innerHTML = entries
       .map((entry) => `<div class="fee-row"><span>${escapeHtml(findPerson(entry.personId)?.name || "Guest")}</span><strong>${formatNative(entry.amount, parsedReceipt.currency)}</strong></div>`)
-      .join("");
+      .join("") + convertedLine(nativeTotal, parsedReceipt.currency);
     showScreen("selection-review");
     return;
   }
@@ -1198,13 +1248,20 @@ function reviewSelections() {
   $("#selectionReviewTotal").textContent = formatNative(selectedNativeTotal(), parsedReceipt.currency);
   $("#selectionReviewReceipt").textContent = parsedReceipt.name || "Receipt";
   $("#selectionReviewCount").textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
+  const nativeTotal = selectedNativeTotal();
   $("#selectionReviewList").innerHTML = [
     ...items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount, parsedReceipt.currency)}</strong></div>`),
     adjustment ? `<div class="fee-row"><span>Tip, tax, fees, discounts</span><strong>${formatNative(adjustment, parsedReceipt.currency)}</strong></div>` : "",
+    convertedLine(nativeTotal, parsedReceipt.currency),
   ]
     .filter(Boolean)
     .join("");
   showScreen("selection-review");
+}
+
+function convertedLine(amount, currency) {
+  if (currency === "USD") return "";
+  return `<div class="fee-row"><span>Converted total</span><strong>${money.format(toUsd(amount, currency))}</strong></div>`;
 }
 
 function saveReceipt(assignLater = false) {
@@ -1406,6 +1463,8 @@ function closeTrip() {
 
 function renderInstallScreen() {
   $("#installInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
+  $("#installInvitePanel").classList.toggle("hidden", !isTripOwner());
+  $("#installBack").classList.toggle("hidden", installReturnScreen === "home");
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
     ? "Tap Share in Safari, then Add to Home Screen."
     : "Use Add app when available, or install Trip Split from your browser menu.";
@@ -1422,7 +1481,7 @@ function renderGroups() {
                 <div class="row-name">${escapeHtml(group.name)}</div>
                 <div class="subtext">${group.id === activeGroupId ? "Current trip" : "Tap to switch"}</div>
               </div>
-              <button class="small-primary" data-switch-group="${group.id}"><i data-lucide="arrow-right"></i><span>Open</span></button>
+              ${group.id === activeGroupId ? "" : `<button class="small-primary" data-switch-group="${group.id}"><i data-lucide="arrow-right"></i><span>Open</span></button>`}
             </article>
           `
         )
@@ -1681,6 +1740,7 @@ function renderSummary() {
   const personId = activePersonId || state.people[0]?.id;
   const person = findPerson(personId);
   const totals = personId ? personTotals(personId) : { owed: 0 };
+  $("#loggedInAs").textContent = person ? `Logged in as ${person.name}` : "Not signed in";
   $("#personalTotal").textContent = `${person ? possessive(person.name) : "Your"} share ${money.format(totals.owed)}`;
 }
 
@@ -1691,27 +1751,30 @@ function renderExpenses() {
   let total = 0;
   state.receipts.forEach((receipt) => {
     if (isPendingReceipt(receipt)) return;
-    (receipt.items || []).forEach((item) => {
-      if (!(item.assignedTo || []).includes(personId)) return;
-      const share = item.amount / Math.max(1, item.assignedTo.length);
-      total += toUsd(share, receipt.currency);
-      rows.push({ receipt, item, share });
-    });
+    const items = (receipt.items || []).filter((item) => (item.assignedTo || []).includes(personId));
+    if (!items.length) return;
+    const native = items.reduce((sumValue, item) => sumValue + item.amount / Math.max(1, item.assignedTo.length), 0);
+    total += toUsd(native, receipt.currency);
+    rows.push({ receipt, items, native });
   });
-  $("#expensesTitle").textContent = person ? `${possessive(person.name)} items` : "Your items";
+  $("#expensesTitle").textContent = person ? `${possessive(person.name)} expenses` : "My expenses";
   $("#expensesTotal").textContent = money.format(total);
   $("#expensesList").innerHTML = rows.length
     ? rows
         .map(
-          ({ receipt, item, share }) => `
+          ({ receipt, items, native }) => `
             <article class="history-row">
               <div class="row-head">
                 <div>
-                  <div class="row-name">${escapeHtml(item.name)}</div>
-                  <div class="subtext">${escapeHtml(receipt.name || "Receipt")} · ${new Date(receipt.date || receipt.createdAt).toLocaleDateString()}</div>
+                  <div class="row-name">${escapeHtml(receipt.name || "Receipt")}</div>
+                  <div class="subtext">${new Date(receipt.date || receipt.createdAt).toLocaleDateString()}</div>
                 </div>
-                <div class="money">${formatNative(share, receipt.currency)}</div>
+                <div class="money">${formatNative(native, receipt.currency)}</div>
               </div>
+              <details class="settled-archive">
+                <summary>${items.length} item${items.length === 1 ? "" : "s"}</summary>
+                ${items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount / Math.max(1, item.assignedTo.length), receipt.currency)}</strong></div>`).join("")}
+              </details>
             </article>
           `
         )
@@ -1792,6 +1855,12 @@ function formatNative(amount, currency) {
   }).format(amount || 0);
 }
 
+function currencySymbol(currency) {
+  if (currency === "THB") return "฿";
+  if (currency === "VND") return "₫";
+  return "$";
+}
+
 function formatRate(currency, rate) {
   if (currency === "USD") return "1 USD";
   return `1 USD = ${Number(rate).toLocaleString("en-US", { maximumFractionDigits: currency === "VND" ? 0 : 2 })} ${currency}`;
@@ -1808,7 +1877,7 @@ async function promptInstall() {
     deferredInstallPrompt.prompt();
     await deferredInstallPrompt.userChoice.catch(() => null);
     deferredInstallPrompt = null;
-    showScreen("home");
+    showScreen(installReturnScreen);
     return;
   }
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)

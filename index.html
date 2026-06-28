@@ -37,6 +37,7 @@
 
         <section class="hero-card">
           <div>
+            <span id="loggedInAs">Not signed in</span>
             <span>Trip total</span>
             <strong id="tripTotal">$0.00</strong>
             <small id="personalTotal">Your share $0.00</small>
@@ -73,7 +74,7 @@
 
         <section class="panel action-panel">
           <div class="section-title">
-            <h2>Add receipt</h2>
+            <h2>Add expense</h2>
             <span id="rateStatus">Rates loading</span>
           </div>
           <div class="home-actions">
@@ -122,6 +123,7 @@
 
       <section class="screen" id="screen-install">
         <header class="flow-header">
+          <button class="back-button hidden" id="installBack" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>Add to Home Screen</h1>
         </header>
         <section class="receipt-card">
@@ -129,12 +131,14 @@
           <strong>Save this app</strong>
           <span id="installPromptText">Use your browser share button, then choose Add to Home Screen.</span>
         </section>
-        <section class="panel">
+        <section class="panel" id="installInvitePanel">
           <label>
             <span>Trip invite link</span>
             <input id="installInviteLink" type="text" readonly aria-label="Trip invite link" />
           </label>
           <button class="primary full secondary-action" id="installCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
+        </section>
+        <section class="panel">
           <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
           <button class="primary full secondary-action" id="installDone"><i data-lucide="check"></i><span>Done</span></button>
         </section>
@@ -259,19 +263,23 @@
         </header>
 
         <section class="receipt-card">
-          <p>Receipt total</p>
-          <strong id="parsedTotal">$0.00</strong>
-          <span id="scanStatus"></span>
-          <span id="parsedPaidBy"></span>
+          <div>
+            <p>Receipt total</p>
+            <strong id="parsedTotal">$0.00</strong>
+            <span id="scanStatus"></span>
+            <span id="parsedPaidBy"></span>
+          </div>
           <button class="receipt-thumb hidden" id="itemizeReceiptPreview" aria-label="Open receipt photo">
             <img id="itemizeReceiptImage" alt="Receipt photo" />
           </button>
-          <a class="receipt-link hidden" id="itemizeReceiptDownload" download="receipt.png">Download receipt photo</a>
         </section>
 
         <details class="panel receipt-details">
           <summary>
-            <span>Review receipt details</span>
+            <div>
+              <span>Review receipt details</span>
+              <div class="detail-summary" id="reviewSummary"></div>
+            </div>
             <i data-lucide="square-pen"></i>
           </summary>
           <div class="section-title">
@@ -391,7 +399,7 @@
         </section>
         <section class="panel">
           <div class="section-title">
-            <h2>Selected items</h2>
+            <h2 id="selectionReviewTitle">Selected items</h2>
             <span id="selectionReviewCount">0</span>
           </div>
           <div id="selectionReviewList" class="items-list"></div>
@@ -404,6 +412,7 @@
           <h1>Receipt logged</h1>
         </header>
         <section class="receipt-card confirmation-card">
+          <div class="success-mark"><i data-lucide="check"></i></div>
           <p id="confirmationKicker">Saved to trip</p>
           <strong id="confirmationTitle">Receipt</strong>
           <span id="confirmationDetail">$0.00</span>
@@ -420,10 +429,6 @@
           <h1>People</h1>
         </header>
         <section class="panel">
-          <form id="personForm" class="inline-form">
-            <input id="personName" type="text" placeholder="Name" autocomplete="off" />
-            <button class="primary icon-only" aria-label="Add person"><i data-lucide="plus"></i></button>
-          </form>
           <div id="peopleList" class="people-list"></div>
         </section>
       </section>
@@ -445,7 +450,7 @@
       <section class="screen" id="screen-expenses">
         <header class="flow-header">
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
-          <h1>Your expenses</h1>
+          <h1>My expenses</h1>
         </header>
         <section class="panel">
           <div class="section-title">
@@ -502,7 +507,7 @@
           <h1>Settings</h1>
         </header>
         <section class="panel">
-          <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite people</span></button>
+          <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite</span></button>
           <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
           <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
           <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>

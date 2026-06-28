@@ -1,7 +1,7 @@
 {
   "name": "Trip Split",
   "short_name": "Trip Split",
-  "start_url": "/start",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#09070e",

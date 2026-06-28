@@ -18,6 +18,11 @@
   box-sizing: border-box;
 }
 
+html {
+  min-height: 100%;
+  background: #09070e;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -167,13 +172,21 @@ h2 {
 }
 
 .receipt-card {
-  grid-template-columns: 1fr;
+  grid-template-columns: 1fr auto;
   margin-bottom: 20px;
+}
+
+.receipt-card #parsedPaidBy {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 1000;
 }
 
 .quick-nav {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin: 14px 0;
 }
@@ -226,6 +239,13 @@ textarea {
   outline: 0;
   padding: 0 16px;
   font-size: 18px;
+}
+
+input[type="date"] {
+  min-width: 0;
+  height: 56px;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 input:focus,
@@ -502,9 +522,28 @@ textarea {
   margin-bottom: 16px;
 }
 
+.detail-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.detail-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.detail-summary strong {
+  color: var(--ink);
+  text-align: right;
+}
+
 .receipt-thumb {
-  width: 96px;
-  height: 96px;
+  width: 72px;
+  height: 72px;
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--line);
@@ -526,7 +565,7 @@ textarea {
 
 .item-head {
   display: grid;
-  grid-template-columns: 44px 1fr;
+  grid-template-columns: 1fr;
   gap: 10px;
   align-items: start;
   margin-bottom: 10px;
@@ -534,8 +573,25 @@ textarea {
 
 .parsed-item-fields {
   display: grid;
-  grid-template-columns: 1.3fr 0.8fr;
+  grid-template-columns: 1.55fr 0.75fr;
   gap: 8px;
+}
+
+.currency-input {
+  position: relative;
+}
+
+.currency-input em {
+  position: absolute;
+  left: 12px;
+  bottom: 13px;
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 1000;
+}
+
+.currency-input input {
+  padding-left: 30px;
 }
 
 .parsed-item-fields label {
@@ -741,6 +797,33 @@ textarea {
   max-height: 70vh;
   justify-self: center;
   border-radius: 18px;
+}
+
+.success-mark {
+  width: 66px;
+  height: 66px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--green);
+  color: white;
+}
+
+.success-mark svg {
+  width: 38px;
+  height: 38px;
+}
+
+.start-onboarding #screen-home .hero-card,
+.start-onboarding #screen-home .quick-nav,
+.start-onboarding #screen-home .action-panel,
+.start-onboarding #screen-home #pendingPanel,
+.start-onboarding #screen-home .header-actions {
+  display: none;
+}
+
+.start-onboarding #homeGroupSetup {
+  display: block;
 }
 
 .confirmation-actions .secondary-action {

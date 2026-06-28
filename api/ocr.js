@@ -21,12 +21,13 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const text = await readWithGoogleVision(imageBase64).catch(() => readWithOcrSpace(imageDataUrl));
+    const result = await readWithGoogleVision(imageBase64).catch(() => readWithOcrSpace(imageDataUrl));
+    const text = result.text;
     if (!text) {
       res.status(422).json({ error: "OCR did not return text." });
       return;
     }
-    res.status(200).json({ text });
+    res.status(200).json(result);
   } catch (error) {
     res.status(500).json({ error: error.message || "OCR failed." });
   }
@@ -52,7 +53,7 @@ async function readWithGoogleVision(imageBase64) {
   const data = await response.json();
   const result = data.responses?.[0];
   if (result?.error) throw new Error(result.error.message || "Google Vision OCR failed.");
-  return result?.fullTextAnnotation?.text || result?.textAnnotations?.[0]?.description || "";
+  return { provider: "Google Vision", text: result?.fullTextAnnotation?.text || result?.textAnnotations?.[0]?.description || "" };
 }
 
 async function readWithOcrSpace(imageDataUrl) {
@@ -75,7 +76,7 @@ async function readWithOcrSpace(imageDataUrl) {
   if (!response.ok) throw new Error("OCR.Space request failed.");
   const data = await response.json();
   if (data.IsErroredOnProcessing) throw new Error(data.ErrorMessage || "OCR.Space processing failed.");
-  return data.ParsedResults?.map((result) => result.ParsedText).filter(Boolean).join("\n").trim() || "";
+  return { provider: "OCR.Space", text: data.ParsedResults?.map((result) => result.ParsedText).filter(Boolean).join("\n").trim() || "" };
 }
 
 function readRawBody(req) {
