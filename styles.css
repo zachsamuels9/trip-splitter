@@ -29,7 +29,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -62,6 +63,11 @@ button {
   justify-content: space-between;
   gap: 16px;
   padding: 8px 0 18px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .flow-header {
@@ -209,7 +215,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 56px;
   border: 1px solid #111525;
@@ -222,9 +229,16 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   border-color: rgba(129, 56, 244, 0.82);
   box-shadow: 0 0 0 3px rgba(129, 56, 244, 0.18);
+}
+
+textarea {
+  min-height: 92px;
+  padding-top: 14px;
+  resize: vertical;
 }
 
 .field-grid {
@@ -243,6 +257,10 @@ select:focus {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.sticky-actions {
+  grid-template-columns: 1fr;
 }
 
 .big-action,
@@ -448,7 +466,7 @@ select:focus {
 
 .split-methods {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin-bottom: 16px;
 }
@@ -462,8 +480,42 @@ select:focus {
   border-radius: 22px;
   background: rgba(18, 24, 39, 0.95);
   color: var(--muted);
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 1000;
+}
+
+.receipt-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  list-style: none;
+  cursor: pointer;
+  color: var(--ink);
+  font-weight: 1000;
+}
+
+.receipt-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.receipt-details[open] summary {
+  margin-bottom: 16px;
+}
+
+.receipt-thumb {
+  width: 96px;
+  height: 96px;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--field);
+}
+
+.receipt-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .method.active {
@@ -665,6 +717,32 @@ select:focus {
   margin-top: 12px;
 }
 
+.image-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  align-content: center;
+  gap: 16px;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.86);
+}
+
+.image-viewer.hidden {
+  display: none;
+}
+
+.image-viewer .icon-button {
+  justify-self: end;
+}
+
+.image-viewer img {
+  max-width: min(100%, 430px);
+  max-height: 70vh;
+  justify-self: center;
+  border-radius: 18px;
+}
+
 .confirmation-actions .secondary-action {
   margin-top: 10px;
 }
@@ -677,6 +755,35 @@ select:focus {
 .group-row button {
   align-self: center;
   min-width: 112px;
+}
+
+.amount-list {
+  display: grid;
+  gap: 10px;
+}
+
+.amount-row {
+  display: grid;
+  grid-template-columns: 1fr 130px;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+}
+
+.settle-actions {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.settled-archive {
+  margin-top: 16px;
+}
+
+.settled-archive summary {
+  color: var(--cyan);
+  font-weight: 1000;
+  cursor: pointer;
 }
 
 .group-row.active {

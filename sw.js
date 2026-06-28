@@ -1,4 +1,4 @@
-const cacheName = "trip-split-v4";
+const cacheName = "trip-split-v5";
 const appShell = ["/", "/index.html", "/styles.css", "/client.js", "/manifest.json", "/icon.svg", "/favicon.ico", "/favicon.png"];
 
 self.addEventListener("install", (event) => {

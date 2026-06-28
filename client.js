@@ -11,6 +11,7 @@ let rates = loadRates();
 let parsedReceipt = null;
 let splitMode = "items";
 let splitCount = 2;
+let splitEvenPeople = [];
 let editingReceiptId = null;
 let activeGroupId = currentGroupId();
 let activePersonId = activeGroupId ? readStorage(`trip-split-person-${activeGroupId}`) || "" : "";
@@ -110,7 +111,8 @@ function currentGroupId() {
   const savedGroupId = readStorage("trip-split-group-id") || "";
   if (!isBrowser) return savedGroupId;
   try {
-    return new URLSearchParams(window.location.search).get("group") || savedGroupId;
+    const params = new URLSearchParams(window.location.search);
+    return params.get("group") || savedGroupId;
   } catch {
     return savedGroupId;
   }
@@ -183,9 +185,14 @@ function bindEvents() {
     showScreen("home");
   });
   $("#installNative").addEventListener("click", promptInstall);
+  $("#installCopyInvite").addEventListener("click", copyInviteLink);
   $("#installDone").addEventListener("click", () => showScreen("home"));
   $("#showInstallHelp").addEventListener("click", () => showScreen("install"));
+  $("#settingsInvite").addEventListener("click", () => showScreen("install"));
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
+  $("#closeTrip").addEventListener("click", closeTrip);
+  $("#itemizeReceiptPreview").addEventListener("click", openReceiptImagePreview);
+  $("#closeImageViewer").addEventListener("click", closeReceiptImagePreview);
 
   $("#openManual").addEventListener("click", () => {
     setTodayIfBlank();
@@ -246,6 +253,7 @@ function bindEvents() {
 
 function showScreen(name) {
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
+  if (name === "install") renderInstallScreen();
   if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
 }
@@ -348,14 +356,21 @@ async function joinGroup(event) {
 
 async function copyInviteLink() {
   if (!activeGroupId) return;
-  $("#inviteLink").select();
+  const link = inviteUrl();
+  const visibleInput = $("#installInviteLink") && !$("#installInviteLink").closest(".screen")?.classList.contains("active") ? $("#inviteLink") : $("#installInviteLink");
+  if (visibleInput) {
+    visibleInput.value = link;
+    visibleInput.select();
+  }
   try {
     if (!isBrowser || !navigator.clipboard) throw new Error("Clipboard unavailable");
-    await navigator.clipboard.writeText(inviteUrl());
-    $("#groupStatus").textContent = "Invite copied";
+    await navigator.clipboard.writeText(link);
+    const status = $("#groupStatus");
+    if (status) status.textContent = "Invite copied";
   } catch {
     browserDocument?.execCommand("copy");
-    $("#groupStatus").textContent = "Invite copied";
+    const status = $("#groupStatus");
+    if (status) status.textContent = "Invite copied";
   }
 }
 
@@ -430,6 +445,7 @@ async function api(path, options = {}) {
 function inviteUrl() {
   if (!isBrowser) return "";
   const url = new URL(window.location.href);
+  url.pathname = "/start";
   url.searchParams.set("group", activeGroupId);
   return url.toString();
 }
@@ -443,7 +459,7 @@ async function scanImage(event) {
 
   try {
     const imageDataUrl = await fileToDataUrl(file);
-    const text = await readReceiptText(file);
+    const text = await readReceiptText(file, imageDataUrl);
     const detectedCurrency = detectCurrency(text, $("#receiptCurrency").value);
     $("#receiptCurrency").value = detectedCurrency;
     const restaurantName = detectRestaurantName(text);
@@ -473,10 +489,10 @@ async function scanImage(event) {
   }
 }
 
-async function readReceiptText(file) {
+async function readReceiptText(file, imageDataUrl) {
   try {
     updateScanProgress("Reading receipt", "Using receipt OCR...", true);
-    return await readWithRemoteOcr(file);
+    return await readWithRemoteOcr(imageDataUrl);
   } catch {
     if (!isBrowser || !window.Tesseract) throw new Error("No OCR available");
     updateScanProgress("Reading receipt", "Receipt OCR unavailable. Trying backup scanner...", true);
@@ -507,18 +523,11 @@ function resetScanStatus() {
   $("#scanProgressText").textContent = "Preparing image...";
 }
 
-async function readWithRemoteOcr(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("language", "eng");
-  formData.append("isOverlayRequired", "false");
-  formData.append("scale", "true");
-  formData.append("detectOrientation", "true");
-  formData.append("isTable", "true");
-
+async function readWithRemoteOcr(imageDataUrl) {
   const response = await fetch("/api/ocr", {
     method: "POST",
-    body: formData,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ imageDataUrl }),
   });
   if (!response.ok) throw new Error("Remote OCR failed");
   const data = await response.json();
@@ -718,8 +727,9 @@ function isLikelyFoodItem(label, amount, currency) {
 function seedManualRows() {
   setTodayIfBlank();
   $("#manualItems").innerHTML = "";
-  addManualItem("Burger", 1, 10);
-  addManualItem("Sushi", 1, 15);
+  addManualItem("", 1, "");
+  addManualItem("", 1, "");
+  addManualItem("", 1, "");
   renderManualReview();
 }
 
@@ -840,7 +850,7 @@ function renderAssignment() {
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
   $("#splitCount").textContent = splitCount;
   $("#saveLaterReceipt").classList.toggle("hidden", Boolean(editingReceiptId) || splitMode === "even");
-  $("#itemizeReceiptImage").classList.toggle("hidden", !parsedReceipt.imageDataUrl);
+  $("#itemizeReceiptPreview").classList.toggle("hidden", !parsedReceipt.imageDataUrl);
   if (parsedReceipt.imageDataUrl) {
     $("#itemizeReceiptImage").src = parsedReceipt.imageDataUrl;
     $("#itemizeReceiptDownload").href = parsedReceipt.imageDataUrl;
@@ -850,6 +860,8 @@ function renderAssignment() {
   }
   const payer = findPerson(parsedReceipt.paidBy || $("#reviewPaidBy").value);
   $("#parsedPaidBy").textContent = payer ? `${payer.name} paid for this tab` : "";
+  renderEvenPeopleList();
+  renderAmountSplitList();
 
   $("#itemsList").innerHTML = parsedReceipt.items.length
     ? parsedReceipt.items
@@ -1050,12 +1062,72 @@ function setSplitMode(mode) {
   $$(".method").forEach((button) => button.classList.toggle("active", button.dataset.splitMode === mode));
   $("#pickItemsPanel").classList.toggle("hidden", mode !== "items");
   $("#evenSplitPanel").classList.toggle("hidden", mode !== "even");
+  $("#amountSplitPanel").classList.toggle("hidden", mode !== "amounts");
   renderAssignment();
 }
 
 function updateSplitCount(next) {
   splitCount = Math.max(1, Math.min(30, next));
   renderAssignment();
+}
+
+function renderEvenPeopleList() {
+  if (!parsedReceipt) return;
+  if (!splitEvenPeople.length) splitEvenPeople = state.people.map((person) => person.id);
+  $("#evenPeopleList").innerHTML = state.people
+    .map(
+      (person) => `
+        <label class="chip">
+          <input type="checkbox" data-even-person="${person.id}" ${splitEvenPeople.includes(person.id) ? "checked" : ""}>
+          <span>${escapeHtml(person.name)}</span>
+        </label>
+      `
+    )
+    .join("");
+  $$("[data-even-person]").forEach((box) => {
+    box.addEventListener("change", () => {
+      splitEvenPeople = $$("[data-even-person]:checked").map((input) => input.dataset.evenPerson);
+      splitCount = Math.max(1, splitEvenPeople.length);
+      renderReceiptTotals();
+      updateSelectionBar();
+    });
+  });
+}
+
+function renderAmountSplitList() {
+  if (!parsedReceipt) return;
+  const total = receiptTotal(parsedReceipt);
+  $("#amountSplitList").innerHTML = state.people
+    .map(
+      (person) => `
+        <label class="amount-row">
+          <span>${escapeHtml(person.name)}</span>
+          <input data-amount-person="${person.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(amountForPerson(person.id))}" />
+        </label>
+      `
+    )
+    .join("");
+  $$("[data-amount-person]").forEach((input) => {
+    input.addEventListener("input", updateAmountRemaining);
+  });
+  $("#amountRemaining").textContent = `${formatNative(Math.max(0, total - assignedAmountTotal()), parsedReceipt.currency)} left`;
+}
+
+function amountForPerson(personId) {
+  if (!parsedReceipt?.amountSplits) return "";
+  const value = parsedReceipt.amountSplits[personId];
+  return value ? roundCents(value) : "";
+}
+
+function assignedAmountTotal() {
+  return sum($$("[data-amount-person]").map((input) => Number(input.value || 0)));
+}
+
+function updateAmountRemaining() {
+  if (!parsedReceipt) return;
+  const remaining = receiptTotal(parsedReceipt) - assignedAmountTotal();
+  $("#amountRemaining").textContent = `${formatNative(Math.max(0, remaining), parsedReceipt.currency)} left`;
+  updateSelectionBar();
 }
 
 function collectAssignmentChoices() {
@@ -1073,6 +1145,8 @@ function selectedItemsForActivePerson() {
 
 function selectedNativeTotal() {
   if (!parsedReceipt) return 0;
+  if (splitMode === "even") return receiptTotal(parsedReceipt) / Math.max(1, splitEvenPeople.length || splitCount);
+  if (splitMode === "amounts") return Number($(`[data-amount-person="${activePersonId || $("#reviewPaidBy").value}"]`)?.value || 0);
   return sum(selectedItemsForActivePerson().map((item) => item.amount)) + selectedAdjustmentShare();
 }
 
@@ -1087,9 +1161,10 @@ function selectedAdjustmentShare() {
 function updateSelectionBar() {
   if (!parsedReceipt) return;
   collectAssignmentChoices();
-  const hasSelection = splitMode === "even" || selectedItemsForActivePerson().length > 0;
+  const hasSelection = splitMode === "even" || splitMode === "amounts" || selectedItemsForActivePerson().length > 0;
   $("#selectionTotal").classList.toggle("hidden", !hasSelection);
   $("#reviewSelections").classList.toggle("hidden", !hasSelection);
+  $("#saveLaterReceipt").classList.toggle("hidden", hasSelection || Boolean(editingReceiptId) || splitMode !== "items");
   $("#selectionTotal").textContent = `Selected ${formatNative(selectedNativeTotal(), parsedReceipt.currency)}`;
 }
 
@@ -1097,10 +1172,23 @@ function reviewSelections() {
   if (!parsedReceipt) return;
   collectAssignmentChoices();
   if (splitMode === "even") {
-    $("#selectionReviewTotal").textContent = formatNative(receiptTotal(parsedReceipt) / Math.max(1, splitCount), parsedReceipt.currency);
+    const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
+    $("#selectionReviewTotal").textContent = formatNative(receiptTotal(parsedReceipt) / Math.max(1, people.length), parsedReceipt.currency);
     $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · split evenly`;
-    $("#selectionReviewCount").textContent = `${splitCount} people`;
-    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share</span><strong>${formatNative(receiptTotal(parsedReceipt) / Math.max(1, splitCount), parsedReceipt.currency)}</strong></div>`;
+    $("#selectionReviewCount").textContent = `${people.length} people`;
+    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share</span><strong>${formatNative(receiptTotal(parsedReceipt) / Math.max(1, people.length), parsedReceipt.currency)}</strong></div>`;
+    showScreen("selection-review");
+    return;
+  }
+  if (splitMode === "amounts") {
+    const entries = $$("[data-amount-person]").map((input) => ({ personId: input.dataset.amountPerson, amount: Number(input.value || 0) })).filter((entry) => entry.amount > 0);
+    parsedReceipt.amountSplits = Object.fromEntries(entries.map((entry) => [entry.personId, entry.amount]));
+    $("#selectionReviewTotal").textContent = formatNative(parsedReceipt.amountSplits[activePersonId] || 0, parsedReceipt.currency);
+    $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · specific amounts`;
+    $("#selectionReviewCount").textContent = `${entries.length} people`;
+    $("#selectionReviewList").innerHTML = entries
+      .map((entry) => `<div class="fee-row"><span>${escapeHtml(findPerson(entry.personId)?.name || "Guest")}</span><strong>${formatNative(entry.amount, parsedReceipt.currency)}</strong></div>`)
+      .join("");
     showScreen("selection-review");
     return;
   }
@@ -1133,10 +1221,23 @@ function saveReceipt(assignLater = false) {
     });
     parsedReceipt.splitEvenCount = null;
   } else if (splitMode === "even") {
+    const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
     parsedReceipt.items.forEach((item) => {
-      item.assignedTo = state.people.map((person) => person.id);
+      item.assignedTo = people;
     });
-    parsedReceipt.splitEvenCount = splitCount;
+    parsedReceipt.splitEvenCount = people.length;
+  } else if (splitMode === "amounts") {
+    parsedReceipt.amountSplits = Object.fromEntries($$("[data-amount-person]").map((input) => [input.dataset.amountPerson, Number(input.value || 0)]));
+    parsedReceipt.items = Object.entries(parsedReceipt.amountSplits)
+      .filter(([, amount]) => amount > 0)
+      .map(([personId, amount]) => ({
+        id: createId(),
+        name: `Share - ${findPerson(personId)?.name || "Guest"}`,
+        amount,
+        assignedTo: [personId],
+      }));
+    parsedReceipt.fees = [];
+    parsedReceipt.discount = 0;
   } else {
     collectAssignmentChoices();
     if (!parsedReceipt.items.some((item) => item.assignedTo.length > 0)) {
@@ -1146,7 +1247,13 @@ function saveReceipt(assignLater = false) {
   }
 
   const savedSplitMode = assignLater ? "items" : splitMode;
-  const shares = assignLater ? withUsd(emptyPersonMap(), parsedReceipt.currency) : splitMode === "even" ? calculateEvenShares(parsedReceipt, splitCount) : calculateItemShares(parsedReceipt);
+  const shares = assignLater
+    ? withUsd(emptyPersonMap(), parsedReceipt.currency)
+    : splitMode === "even"
+      ? calculateEvenShares(parsedReceipt, splitEvenPeople.length || splitCount)
+      : splitMode === "amounts"
+        ? calculateAmountShares(parsedReceipt)
+        : calculateItemShares(parsedReceipt);
   const receipt = {
     id: editingReceiptId || createId(),
     createdAt: new Date().toISOString(),
@@ -1205,10 +1312,17 @@ function calculateItemShares(receipt) {
 function calculateEvenShares(receipt, peopleCount) {
   const native = emptyPersonMap();
   const total = receiptTotal(receipt);
-  const activePeople = state.people.slice(0, peopleCount);
-  const personIds = activePeople.length ? activePeople.map((person) => person.id) : state.people.map((person) => person.id);
+  const personIds = splitEvenPeople.length ? splitEvenPeople : state.people.slice(0, peopleCount).map((person) => person.id);
   personIds.forEach((personId) => {
     native[personId] = total / personIds.length;
+  });
+  return withUsd(native, receipt.currency);
+}
+
+function calculateAmountShares(receipt) {
+  const native = emptyPersonMap();
+  Object.entries(receipt.amountSplits || {}).forEach(([personId, amount]) => {
+    native[personId] = Number(amount || 0);
   });
   return withUsd(native, receipt.currency);
 }
@@ -1256,7 +1370,12 @@ function render() {
 function renderGroupUi() {
   const signedIn = Boolean(activeGroupId && activePersonId && activeGroup);
   $("#resetApp").classList.add("hidden");
+  $("#closeTrip").classList.add("hidden");
   $("#homeGroupSetup").classList.toggle("hidden", signedIn);
+  $("#homeTripTitle").textContent = activeGroup?.name || "Group expenses";
+  const closed = isTripClosed();
+  $(".action-panel")?.classList.toggle("hidden", closed);
+  $("#settlementList")?.closest(".panel")?.classList.toggle("settle-focus", closed);
   $("#groupSignedOut").classList.toggle("hidden", signedIn);
   $("#groupSignedIn").classList.toggle("hidden", !signedIn);
   if (!signedIn) {
@@ -1269,7 +1388,27 @@ function renderGroupUi() {
   $("#groupStatus").textContent = "Shared";
   $("#memberNameLabel").textContent = `Signed in as ${person?.name || "Guest"}`;
   $("#inviteLink").value = inviteUrl();
-  $("#resetApp").classList.toggle("hidden", readStorage(`trip-split-owner-${activeGroupId}`) !== activePersonId);
+  $("#resetApp").classList.toggle("hidden", !isTripOwner());
+  $("#closeTrip").classList.toggle("hidden", !isTripOwner());
+}
+
+function isTripClosed() {
+  return readStorage(`trip-split-closed-${activeGroupId}`) === "true";
+}
+
+function closeTrip() {
+  if (!activeGroupId || !isTripOwner()) return;
+  if (!safeConfirm("Close this trip for settlement?")) return;
+  writeStorage(`trip-split-closed-${activeGroupId}`, "true");
+  render();
+  showScreen("settle");
+}
+
+function renderInstallScreen() {
+  $("#installInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
+  $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
+    ? "Tap Share in Safari, then Add to Home Screen."
+    : "Use Add app when available, or install Trip Split from your browser menu.";
 }
 
 function renderGroups() {
@@ -1319,20 +1458,28 @@ function renderPeopleOptions() {
 }
 
 function renderPeople() {
+  const admin = isTripOwner();
   $("#peopleList").innerHTML = state.people.length
     ? state.people
         .map(
-          (person) => `
+          (person) => {
+            const canRemove = admin || person.id === activePersonId;
+            return `
             <div class="person-row">
               <div>
                 <div class="row-name">${escapeHtml(person.name)}</div>
                 <div class="subtext">${personTotals(person.id).receiptCount} receipts shared</div>
               </div>
-              <button aria-label="Remove ${escapeHtml(person.name)}" data-remove-person="${person.id}">
+              ${
+                canRemove
+                  ? `<button aria-label="Remove ${escapeHtml(person.name)}" data-remove-person="${person.id}">
                 <i data-lucide="trash-2"></i>
-              </button>
+              </button>`
+                  : ""
+              }
             </div>
-          `
+          `;
+          }
         )
         .join("")
     : `<div class="empty">Add people before saving a receipt.</div>`;
@@ -1340,6 +1487,10 @@ function renderPeople() {
   $$("[data-remove-person]").forEach((button) => {
     button.addEventListener("click", () => removePerson(button.dataset.removePerson));
   });
+}
+
+function isTripOwner() {
+  return Boolean(activeGroupId && activePersonId && readStorage(`trip-split-owner-${activeGroupId}`) === activePersonId);
 }
 
 function removePerson(personId) {
@@ -1459,8 +1610,15 @@ function openReceiptForClaiming(receiptId) {
 
 function renderSettlements() {
   const settlements = calculateSettlements();
-  $("#settlementList").innerHTML = settlements.length
-    ? settlements
+  const balance = calculateBalances()[activePersonId] || 0;
+  $("#mySettlementBalance").textContent = money.format(Math.abs(balance));
+  $("#mySettlementHint").textContent = balance > 0.005 ? "You are owed" : balance < -0.005 ? "You owe" : "You are settled up";
+  const settledIds = settledSettlementIds();
+  const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
+  const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));
+  $("#settlementList").innerHTML = [
+    active.length
+      ? active
         .map(
           (settlement) => `
             <div class="settle-row">
@@ -1468,12 +1626,53 @@ function renderSettlements() {
                 <div class="row-name">${escapeHtml(settlement.from)} pays ${escapeHtml(settlement.to)}</div>
                 <div class="subtext">Final net settlement</div>
               </div>
-              <div class="money">${money.format(settlement.amount)}</div>
+              <div class="settle-actions">
+                <div class="money">${money.format(settlement.amount)}</div>
+                <button class="small-primary" data-settle="${settlement.id}"><span>Settled</span></button>
+              </div>
             </div>
           `
         )
         .join("")
-    : `<div class="empty">Everyone is even once receipts are added and assigned.</div>`;
+      : `<div class="empty">Everyone is even once receipts are added and assigned.</div>`,
+    archived.length
+      ? `<details class="settled-archive"><summary>Settled archive (${archived.length})</summary>${archived
+          .map(
+            (settlement) => `
+              <div class="settle-row">
+                <div>
+                  <div class="row-name">${escapeHtml(settlement.from)} paid ${escapeHtml(settlement.to)}</div>
+                  <div class="subtext">Archived settlement</div>
+                </div>
+                <div class="settle-actions">
+                  <div class="money">${money.format(settlement.amount)}</div>
+                  <button class="small-primary" data-unsettle="${settlement.id}"><span>Unsettle</span></button>
+                </div>
+              </div>
+            `
+          )
+          .join("")}</details>`
+      : "",
+  ].join("");
+  $$("[data-settle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.settle, true)));
+  $$("[data-unsettle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.unsettle, false)));
+}
+
+function settledSettlementIds() {
+  const saved = readStorage(`trip-split-settled-${activeGroupId}`) || "[]";
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return [];
+  }
+}
+
+function markSettlement(id, settled) {
+  const ids = new Set(settledSettlementIds());
+  if (settled) ids.add(id);
+  else ids.delete(id);
+  writeStorage(`trip-split-settled-${activeGroupId}`, JSON.stringify([...ids]));
+  renderSettlements();
 }
 
 function renderSummary() {
@@ -1561,7 +1760,7 @@ function calculateSettlements() {
     const debtor = debtors[debtorIndex];
     const creditor = creditors[creditorIndex];
     const amount = roundCents(Math.min(debtor.amount, creditor.amount));
-    if (amount > 0) settlements.push({ from: debtor.person.name, to: creditor.person.name, amount });
+    if (amount > 0) settlements.push({ id: `${debtor.person.id}-${creditor.person.id}-${amount}`, from: debtor.person.name, to: creditor.person.name, amount });
     debtor.amount = roundCents(debtor.amount - amount);
     creditor.amount = roundCents(creditor.amount - amount);
     if (debtor.amount <= 0.005) debtorIndex += 1;
@@ -1631,6 +1830,17 @@ function downloadAllReceipts() {
     link.click();
     link.remove();
   });
+}
+
+function openReceiptImagePreview() {
+  if (!parsedReceipt?.imageDataUrl) return;
+  $("#imageViewerPhoto").src = parsedReceipt.imageDataUrl;
+  $("#imageViewerDownload").href = parsedReceipt.imageDataUrl;
+  $("#imageViewer").classList.remove("hidden");
+}
+
+function closeReceiptImagePreview() {
+  $("#imageViewer").classList.add("hidden");
 }
 
 function safeFileName(value) {

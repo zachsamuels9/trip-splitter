@@ -23,11 +23,16 @@
         <header class="home-header">
           <div>
             <p class="eyebrow">Trip Split</p>
-            <h1>Group expenses</h1>
+            <h1 id="homeTripTitle">Group expenses</h1>
           </div>
-          <button class="icon-button" data-screen="settings" aria-label="Settings" title="Settings">
-            <i data-lucide="settings"></i>
-          </button>
+          <div class="header-actions">
+            <button class="icon-button" data-screen="groups" aria-label="Switch group" title="Switch group">
+              <i data-lucide="chevrons-up-down"></i>
+            </button>
+            <button class="icon-button" data-screen="settings" aria-label="Settings" title="Settings">
+              <i data-lucide="settings"></i>
+            </button>
+          </div>
         </header>
 
         <section class="hero-card">
@@ -62,9 +67,7 @@
         </section>
 
         <nav class="quick-nav" aria-label="Views">
-          <button data-screen="groups"><i data-lucide="layers-3"></i><span>Groups</span></button>
-          <button data-screen="people"><i data-lucide="users"></i><span>People</span></button>
-          <button data-screen="expenses"><i data-lucide="wallet-cards"></i><span>Mine</span></button>
+          <button data-screen="expenses"><i data-lucide="wallet-cards"></i><span>My expenses</span></button>
           <button data-screen="settle"><i data-lucide="hand-coins"></i><span>Settle</span></button>
         </nav>
 
@@ -127,6 +130,11 @@
           <span id="installPromptText">Use your browser share button, then choose Add to Home Screen.</span>
         </section>
         <section class="panel">
+          <label>
+            <span>Trip invite link</span>
+            <input id="installInviteLink" type="text" readonly aria-label="Trip invite link" />
+          </label>
+          <button class="primary full secondary-action" id="installCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
           <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
           <button class="primary full secondary-action" id="installDone"><i data-lucide="check"></i><span>Done</span></button>
         </section>
@@ -176,9 +184,9 @@
         <section class="panel">
           <div class="section-title">
             <h2>Items</h2>
-            <button class="small-primary" id="addManualItem"><i data-lucide="plus"></i><span>Add item</span></button>
           </div>
           <div id="manualItems" class="manual-items"></div>
+          <button class="small-primary full" id="addManualItem"><i data-lucide="plus"></i><span>Add item</span></button>
         </section>
 
         <section class="panel">
@@ -255,11 +263,17 @@
           <strong id="parsedTotal">$0.00</strong>
           <span id="scanStatus"></span>
           <span id="parsedPaidBy"></span>
-          <img class="receipt-image hidden" id="itemizeReceiptImage" alt="Receipt photo" />
+          <button class="receipt-thumb hidden" id="itemizeReceiptPreview" aria-label="Open receipt photo">
+            <img id="itemizeReceiptImage" alt="Receipt photo" />
+          </button>
           <a class="receipt-link hidden" id="itemizeReceiptDownload" download="receipt.png">Download receipt photo</a>
         </section>
 
-        <section class="panel">
+        <details class="panel receipt-details">
+          <summary>
+            <span>Review receipt details</span>
+            <i data-lucide="square-pen"></i>
+          </summary>
           <div class="section-title">
             <h2>Review receipt</h2>
             <button class="small-primary" id="addParsedItem"><i data-lucide="plus"></i><span>Add item</span></button>
@@ -287,10 +301,6 @@
               <span>Date</span>
               <input id="reviewDate" type="date" />
             </label>
-            <label>
-              <span>Notes</span>
-              <input id="reviewNotes" type="text" placeholder="Optional notes" />
-            </label>
           </div>
           <div class="field-grid two">
             <label>
@@ -310,7 +320,11 @@
               <input id="reviewDiscount" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
             </label>
           </div>
-        </section>
+          <label>
+            <span>Notes</span>
+            <textarea id="reviewNotes" placeholder="Optional notes"></textarea>
+          </label>
+        </details>
 
         <section class="split-methods">
           <button class="method active" data-split-mode="items">
@@ -320,6 +334,10 @@
           <button class="method" data-split-mode="even">
             <i data-lucide="users-round"></i>
             <span>Split evenly</span>
+          </button>
+          <button class="method" data-split-mode="amounts">
+            <i data-lucide="badge-dollar-sign"></i>
+            <span>By amount</span>
           </button>
         </section>
 
@@ -342,7 +360,16 @@
             <strong id="splitCount">2</strong>
             <button id="increaseSplit" aria-label="Increase people"><i data-lucide="plus"></i></button>
           </div>
+          <div id="evenPeopleList" class="chip-grid"></div>
           <p class="subtext centered" id="splitEachLabel">$0.00 each</p>
+        </section>
+
+        <section class="panel hidden" id="amountSplitPanel">
+          <div class="section-title">
+            <h2>Specific amounts</h2>
+            <span id="amountRemaining">$0.00 left</span>
+          </div>
+          <div id="amountSplitList" class="amount-list"></div>
         </section>
 
         <div class="sticky-actions" id="itemizeActions">
@@ -455,6 +482,11 @@
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>Settle up</h1>
         </header>
+        <section class="receipt-card">
+          <p>Your balance</p>
+          <strong id="mySettlementBalance">$0.00</strong>
+          <span id="mySettlementHint">Add receipts to calculate settlements.</span>
+        </section>
         <section class="panel">
           <div class="section-title">
             <h2>Net totals</h2>
@@ -470,10 +502,19 @@
           <h1>Settings</h1>
         </header>
         <section class="panel">
+          <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite people</span></button>
+          <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
+          <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
           <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>
           <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
+          <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span>Close trip and settle</span></button>
           <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Clear this trip</span></button>
         </section>
+      </section>
+      <section class="image-viewer hidden" id="imageViewer" aria-modal="true">
+        <button class="icon-button" id="closeImageViewer" aria-label="Close image preview"><i data-lucide="x"></i></button>
+        <img id="imageViewerPhoto" alt="Receipt preview" />
+        <a class="primary full" id="imageViewerDownload" download="receipt.png"><i data-lucide="download"></i><span>Download photo</span></a>
       </section>
     </main>
   </body>
