@@ -57,11 +57,15 @@ button {
 .screen {
   display: none;
   min-height: calc(100dvh - 36px);
-  padding-bottom: 96px;
+  padding-bottom: 28px;
 }
 
 #screen-install {
   padding-bottom: 24px;
+}
+
+#screen-itemize {
+  padding-bottom: 116px;
 }
 
 .screen.active {
@@ -633,6 +637,14 @@ textarea {
   margin-bottom: 10px;
 }
 
+.covered-label {
+  margin-bottom: 10px;
+  color: var(--cyan);
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+}
+
 .parsed-item-fields {
   display: grid;
   grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);
@@ -925,6 +937,8 @@ textarea {
 
 .image-viewer .icon-button {
   justify-self: end;
+  margin-top: max(36px, env(safe-area-inset-top));
+  margin-right: 6px;
 }
 
 .image-viewer img {
@@ -1085,7 +1099,7 @@ svg {
     grid-template-columns: 1fr;
   }
 
-  .screen {
+  #screen-itemize {
     padding-bottom: 190px;
   }
 }

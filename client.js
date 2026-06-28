@@ -1223,20 +1223,42 @@ function renderAssignment() {
   renderEvenPeopleList();
   renderAmountSplitList();
 
-  const openItems = parsedReceipt.items.filter((item) => !itemHasUnassignedQuantity(item));
-  const remainingItems = parsedReceipt.items.filter(itemHasUnassignedQuantity);
-  $("#coveredItemsPanel").classList.toggle("hidden", openItems.length === 0);
-  $("#coveredItemsList").innerHTML = openItems
-    .map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount, parsedReceipt.currency)}</strong></div>`)
-    .join("");
+  const coveredItems = editingReceiptId ? parsedReceipt.items.filter((item) => !itemHasUnassignedQuantity(item)) : [];
+  const editableItems = editingReceiptId ? parsedReceipt.items.filter(itemHasUnassignedQuantity) : parsedReceipt.items;
+  $("#coveredItemsPanel").classList.toggle("hidden", coveredItems.length === 0);
+  $("#coveredItemsList").innerHTML = coveredItems.map((item) => itemRowMarkup(item, true)).join("");
 
-  $("#itemsList").innerHTML = remainingItems.length
-    ? remainingItems
-        .map(
-          (item) => {
-            const quantity = itemQuantity(item);
-            return `
+  $("#itemsList").innerHTML = editableItems.length ? editableItems.map((item) => itemRowMarkup(item, false)).join("") : `<div class="empty">No priced food items found.</div>`;
+
+  renderFeesList();
+
+  $$("[data-item]").forEach((box) => {
+    box.addEventListener("change", () => updateItemPersonSelection(box));
+  });
+  $$("[data-delete-item]").forEach((button) => {
+    button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
+  });
+  $$("[data-edit-item-name]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemName));
+  });
+  $$("[data-edit-item-amount]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
+  });
+  $$("[data-edit-item-qty]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemQty));
+  });
+  $$("[data-claim-adjust]").forEach((button) => {
+    button.addEventListener("click", () => adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0)));
+  });
+  makeIcons();
+  updateSelectionBar();
+}
+
+function itemRowMarkup(item, covered) {
+  const quantity = itemQuantity(item);
+  return `
             <article class="item-row">
+              ${covered ? `<div class="covered-label">Already covered - tap names or steppers to edit</div>` : ""}
               <div class="item-head">
                 <div class="item-title-line">
                   <label>
@@ -1282,33 +1304,6 @@ function renderAssignment() {
               </div>
             </article>
           `;
-          }
-        )
-        .join("")
-    : `<div class="empty">No priced food items found.</div>`;
-
-  renderFeesList();
-
-  $$("[data-item]").forEach((box) => {
-    box.addEventListener("change", () => updateItemPersonSelection(box));
-  });
-  $$("[data-delete-item]").forEach((button) => {
-    button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
-  });
-  $$("[data-edit-item-name]").forEach((input) => {
-    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemName));
-  });
-  $$("[data-edit-item-amount]").forEach((input) => {
-    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
-  });
-  $$("[data-edit-item-qty]").forEach((input) => {
-    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemQty));
-  });
-  $$("[data-claim-adjust]").forEach((button) => {
-    button.addEventListener("click", () => adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0)));
-  });
-  makeIcons();
-  updateSelectionBar();
 }
 
 function syncReviewFields() {
@@ -2456,13 +2451,17 @@ function personTotals(personId) {
   let paid = 0;
   let receiptCount = 0;
   state.receipts.forEach((receipt) => {
-    if (isPendingReceipt(receipt)) return;
-    const share = receipt.shares.usd[personId] || 0;
+    const share = receiptShares(receipt).usd[personId] || 0;
     owed += share;
     if (share > 0) receiptCount += 1;
     if (receipt.paidBy === personId) paid += receipt.totalUsd;
   });
   return { owed, paid, receiptCount };
+}
+
+function receiptShares(receipt) {
+  if ((receipt.items || []).length) return calculateItemShares(receipt);
+  return receipt.shares || withUsd(emptyPersonMap(), receipt.currency || "USD");
 }
 
 function calculateBalances() {

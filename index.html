@@ -609,8 +609,26 @@
           <h1>Settings</h1>
         </header>
         <section class="panel">
+          <button class="primary full secondary-action" data-screen="account-settings"><i data-lucide="circle-user-round"></i><span>Account</span></button>
+          <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite</span></button>
+          <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
+          <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
+          <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>
+          <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
+          <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
+          <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
+          <button class="primary full danger-action hidden" id="deleteTrip"><i data-lucide="trash-2"></i><span>Delete trip</span></button>
+          <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Reset trip</span></button>
+        </section>
+      </section>
+      <section class="screen" id="screen-account-settings">
+        <header class="flow-header">
+          <button class="back-button" data-screen="settings" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Account</h1>
+        </header>
+        <section class="panel">
           <div class="section-title">
-            <h2>Account</h2>
+            <h2>Profile</h2>
             <span id="accountSettingsStatus">Signed in</span>
           </div>
           <label>
@@ -626,16 +644,7 @@
             <input id="settingsPasscode" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Leave blank to keep current" />
           </label>
           <button class="primary full secondary-action" id="saveAccount"><i data-lucide="save"></i><span>Save account</span></button>
-          <button class="primary full secondary-action" id="signOut"><i data-lucide="log-out"></i><span>Sign out</span></button>
-          <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite</span></button>
-          <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
-          <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
-          <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>
-          <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
-          <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
-          <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
-          <button class="primary full danger-action hidden" id="deleteTrip"><i data-lucide="trash-2"></i><span>Delete trip</span></button>
-          <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Reset trip</span></button>
+          <button class="primary full danger-action" id="signOut"><i data-lucide="log-out"></i><span>Sign out</span></button>
         </section>
       </section>
       <section class="screen" id="screen-admin">
