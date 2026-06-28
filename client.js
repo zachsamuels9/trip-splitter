@@ -204,19 +204,21 @@ function bindEvents() {
   $("#installNative").addEventListener("click", promptInstall);
   $("#installBack").addEventListener("click", () => showScreen(installReturnScreen));
   $("#installCopyInvite").addEventListener("click", copyInviteLink);
-  $("#installDone").addEventListener("click", () => showScreen(installReturnScreen));
   $("#showInstallHelp").addEventListener("click", () => {
     installReturnScreen = "settings";
     showScreen("install");
   });
-  $("#settingsInvite").addEventListener("click", () => {
-    installReturnScreen = "settings";
-    showScreen("install");
-  });
+  $("#settingsInvite").addEventListener("click", () => showScreen("invite"));
+  $("#settingsCopyInvite").addEventListener("click", copyInviteLink);
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
+  $("#leaveTrip").addEventListener("click", leaveTrip);
+  $("#loggedInBox").addEventListener("click", leaveTrip);
+  $("#openReceipts").addEventListener("click", () => showScreen("totals"));
+  $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
   $("#itemizeReceiptPreview").addEventListener("click", openReceiptImagePreview);
   $("#closeImageViewer").addEventListener("click", closeReceiptImagePreview);
+  $("#imageViewerDownload").addEventListener("click", downloadPreviewImage);
 
   $("#openManual").addEventListener("click", () => {
     setTodayIfBlank();
@@ -241,7 +243,7 @@ function bindEvents() {
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
   $("#addParsedItem").addEventListener("click", addParsedItem);
   $("#reviewSelections").addEventListener("click", reviewSelections);
-  $("#acceptSelections").addEventListener("click", () => saveReceipt(false));
+  $("#acceptSelections").addEventListener("click", () => saveReceipt(false, true));
   $("#saveLaterReceipt").addEventListener("click", () => saveReceipt(true));
   $("#confirmationHome").addEventListener("click", () => showScreen("home"));
   $("#confirmationAddAnother").addEventListener("click", () => {
@@ -275,8 +277,13 @@ function showScreen(name) {
   updateBackTargets(name);
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
   if (name === "install") renderInstallScreen();
+  if (name === "invite") renderInviteScreen();
   if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
+}
+
+function renderInviteScreen() {
+  $("#settingsInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
 }
 
 function updateBackTargets(name) {
@@ -394,7 +401,8 @@ async function joinGroup(event) {
 async function copyInviteLink() {
   if (!activeGroupId) return;
   const link = inviteUrl();
-  const visibleInput = $("#installInviteLink") && !$("#installInviteLink").closest(".screen")?.classList.contains("active") ? $("#inviteLink") : $("#installInviteLink");
+  const activeScreen = $(".screen.active")?.id;
+  const visibleInput = activeScreen === "screen-invite" ? $("#settingsInviteLink") : activeScreen === "screen-install" ? $("#installInviteLink") : $("#inviteLink");
   if (visibleInput) {
     visibleInput.value = link;
     visibleInput.select();
@@ -495,8 +503,9 @@ async function scanImage(event) {
   updateScanProgress("Reading receipt", "Uploading photo for OCR...", true);
 
   try {
-    const imageDataUrl = await fileToDataUrl(file);
-    const ocr = await readReceiptText(file, imageDataUrl);
+    const originalImageDataUrl = await fileToDataUrl(file);
+    const imageDataUrl = await optimizeImageDataUrl(originalImageDataUrl);
+    const ocr = await readReceiptText(imageDataUrl);
     const text = ocr.text;
     const detectedCurrency = detectCurrency(text, $("#receiptCurrency").value);
     $("#receiptCurrency").value = detectedCurrency;
@@ -517,32 +526,20 @@ async function scanImage(event) {
     }
     splitMode = "items";
     setSplitMode("items");
-    updateScanProgress("Items found", `${parsedReceipt.items.length} items found in ${detectedCurrency} with ${ocr.provider}.`, false);
+    updateScanProgress("Receipt read", `Ready to review in ${detectedCurrency} with ${ocr.provider}.`, false);
     showScreen("itemize");
+    $("#scanStatus").textContent = "";
     renderAssignment();
-  } catch {
-    updateScanProgress("Scan failed", "Could not read that photo. Try a brighter image or use manual entry.", false);
+  } catch (error) {
+    updateScanProgress("Scan failed", error.message || "Could not read that photo. Try a brighter image or use manual entry.", false);
   } finally {
     event.target.value = "";
   }
 }
 
-async function readReceiptText(file, imageDataUrl) {
-  try {
-    updateScanProgress("Reading receipt", "Using receipt OCR...", true);
-    return await readWithRemoteOcr(imageDataUrl);
-  } catch {
-    if (!isBrowser || !window.Tesseract) throw new Error("No OCR available");
-    updateScanProgress("Reading receipt", "Receipt OCR unavailable. Trying backup scanner...", true);
-    const result = await window.Tesseract.recognize(file, "eng", {
-      logger: (message) => {
-        if (message.status === "recognizing text") {
-          updateScanProgress("Reading receipt", `Backup scanner... ${Math.round(message.progress * 100)}%`, true);
-        }
-      },
-    });
-    return { provider: "backup scanner", text: result.data.text };
-  }
+async function readReceiptText(imageDataUrl) {
+  updateScanProgress("Reading receipt", "Using server receipt OCR...", true);
+  return readWithRemoteOcr(imageDataUrl);
 }
 
 function updateScanProgress(title, text, loading) {
@@ -567,10 +564,35 @@ async function readWithRemoteOcr(imageDataUrl) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ imageDataUrl }),
   });
-  if (!response.ok) throw new Error("Remote OCR failed");
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.error || "Server OCR failed. Check OCR configuration.");
+  }
   const data = await response.json();
   if (!data.text) throw new Error("No OCR text");
   return { provider: data.provider || "receipt OCR", text: data.text };
+}
+
+function optimizeImageDataUrl(imageDataUrl) {
+  return new Promise((resolve) => {
+    if (!isBrowser) {
+      resolve(imageDataUrl);
+      return;
+    }
+    const image = new Image();
+    image.onload = () => {
+      const maxSide = 1800;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+      const canvas = browserDocument.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", 0.86));
+    };
+    image.onerror = () => resolve(imageDataUrl);
+    image.src = imageDataUrl;
+  });
 }
 
 function prepareScanReceipt() {
@@ -783,7 +805,7 @@ function addManualItem(name = "", qty = 1, price = "") {
   row.innerHTML = `
     <div class="manual-name-line">
       <label>
-        <span>Item name</span>
+        <span>Item name *</span>
         <input data-field="name" type="text" value="${escapeHtml(name)}" placeholder="Item name" />
       </label>
       <button data-remove-manual="${id}" aria-label="Remove item"><i data-lucide="trash-2"></i></button>
@@ -794,7 +816,7 @@ function addManualItem(name = "", qty = 1, price = "") {
         <input data-field="qty" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(qty)}" />
       </label>
       <label>
-        <span>Unit price</span>
+        <span>Unit price *</span>
         <input data-field="price" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(price)}" />
       </label>
     </div>
@@ -1009,7 +1031,7 @@ function renderReviewSummary() {
   const payer = findPerson(parsedReceipt.paidBy || $("#reviewPaidBy").value)?.name || "Not set";
   $("#reviewSummary").innerHTML = `
     <div><span>Name</span><strong>${escapeHtml(parsedReceipt.name || "Receipt")}</strong></div>
-    <div><span>Date</span><strong>${escapeHtml(parsedReceipt.date || "Not set")}</strong></div>
+    <div><span>Date</span><strong>${escapeHtml(formatLongDate(parsedReceipt.date) || "Not set")}</strong></div>
     <div><span>Paid by</span><strong>${escapeHtml(payer)}</strong></div>
     <div><span>Currency</span><strong>${escapeHtml(parsedReceipt.currency || "USD")}</strong></div>
     <div><span>Tip / tax / fees</span><strong>${formatNative(sum(parsedReceipt.fees.map((fee) => fee.amount)), parsedReceipt.currency)}</strong></div>
@@ -1264,7 +1286,7 @@ function convertedLine(amount, currency) {
   return `<div class="fee-row"><span>Converted total</span><strong>${money.format(toUsd(amount, currency))}</strong></div>`;
 }
 
-function saveReceipt(assignLater = false) {
+function saveReceipt(assignLater = false, directToExpenses = false) {
   if (!parsedReceipt) return;
   const paidBy = $("#reviewPaidBy").value;
   if (!paidBy) {
@@ -1344,7 +1366,8 @@ function saveReceipt(assignLater = false) {
   saveState();
   saveGroupReceipt(receipt);
   render();
-  showConfirmation(receipt, assignLater);
+  if (directToExpenses && !assignLater) showScreen("expenses");
+  else showConfirmation(receipt, assignLater);
 }
 
 function calculateItemShares(receipt) {
@@ -1459,6 +1482,20 @@ function closeTrip() {
   writeStorage(`trip-split-closed-${activeGroupId}`, "true");
   render();
   showScreen("settle");
+}
+
+function leaveTrip() {
+  if (!activeGroupId || !activePersonId) return;
+  if (!safeConfirm("Leave this trip on this device?")) return;
+  if (!safeConfirm("Are you sure? You will need the invite link to rejoin.")) return;
+  removeStorage(`trip-split-person-${activeGroupId}`);
+  removeStorage("trip-split-group-id");
+  activePersonId = "";
+  activeGroupId = "";
+  activeGroup = null;
+  state = defaultState();
+  render();
+  showScreen("groups");
 }
 
 function renderInstallScreen() {
@@ -1588,8 +1625,14 @@ function renderTotals() {
 
 function renderHistory() {
   $("#historyCount").textContent = `${state.receipts.length}`;
-  $("#historyList").innerHTML = state.receipts.length
-    ? state.receipts
+  const sortedReceipts = [...state.receipts].sort((a, b) => {
+    const sort = $("#receiptSort")?.value || "entry";
+    const aDate = sort === "receipt" ? a.date || a.createdAt : a.createdAt || a.date;
+    const bDate = sort === "receipt" ? b.date || b.createdAt : b.createdAt || b.date;
+    return new Date(bDate || 0) - new Date(aDate || 0);
+  });
+  $("#historyList").innerHTML = sortedReceipts.length
+    ? sortedReceipts
         .map((receipt) => {
           const payer = findPerson(receipt.paidBy)?.name || "Unknown";
           const date = new Date(receipt.date || receipt.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -1603,8 +1646,7 @@ function renderHistory() {
                 <div class="money">${money.format(receipt.totalUsd)}</div>
               </div>
               <div class="subtext">Original ${formatNative(receipt.totalNative, receipt.currency)} · ${formatRate(receipt.currency, receipt.rateUsed)}</div>
-              ${receipt.imageDataUrl ? `<img class="receipt-image" src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" />` : ""}
-              ${receipt.imageDataUrl ? `<a class="receipt-link" href="${receipt.imageDataUrl}" target="_blank" rel="noreferrer">View receipt image</a>` : ""}
+              ${receipt.imageDataUrl ? `<button class="receipt-thumb history-thumb" data-preview-receipt="${receipt.id}" aria-label="Open ${escapeHtml(receipt.name || "Receipt")} photo"><img src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" /></button>` : ""}
               ${
                 receipt.splitMode === "items"
                   ? `<button class="small-primary receipt-open" data-open-receipt="${receipt.id}"><i data-lucide="list-checks"></i><span>${isPendingReceipt(receipt) ? "Split now" : "Edit items"}</span></button>`
@@ -1618,6 +1660,9 @@ function renderHistory() {
 
   $$("[data-open-receipt]").forEach((button) => {
     button.addEventListener("click", () => openReceiptForClaiming(button.dataset.openReceipt));
+  });
+  $$("[data-preview-receipt]").forEach((button) => {
+    button.addEventListener("click", () => openSavedReceiptImagePreview(button.dataset.previewReceipt));
   });
 }
 
@@ -1866,6 +1911,13 @@ function formatRate(currency, rate) {
   return `1 USD = ${Number(rate).toLocaleString("en-US", { maximumFractionDigits: currency === "VND" ? 0 : 2 })} ${currency}`;
 }
 
+function formatLongDate(value) {
+  if (!value) return "";
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+}
+
 function possessive(name) {
   const clean = String(name || "Your").trim();
   if (!clean || clean.toLowerCase() === "your") return "Your";
@@ -1905,11 +1957,36 @@ function openReceiptImagePreview() {
   if (!parsedReceipt?.imageDataUrl) return;
   $("#imageViewerPhoto").src = parsedReceipt.imageDataUrl;
   $("#imageViewerDownload").href = parsedReceipt.imageDataUrl;
+  $("#imageViewerDownload").download = `${safeFileName(parsedReceipt.name || "receipt")}.jpg`;
+  $("#imageViewer").classList.remove("hidden");
+}
+
+function openSavedReceiptImagePreview(receiptId) {
+  const receipt = state.receipts.find((item) => item.id === receiptId);
+  if (!receipt?.imageDataUrl) return;
+  $("#imageViewerPhoto").src = receipt.imageDataUrl;
+  $("#imageViewerDownload").href = receipt.imageDataUrl;
+  $("#imageViewerDownload").download = `${safeFileName(receipt.name || "receipt")}.jpg`;
   $("#imageViewer").classList.remove("hidden");
 }
 
 function closeReceiptImagePreview() {
   $("#imageViewer").classList.add("hidden");
+}
+
+function downloadPreviewImage(event) {
+  const href = $("#imageViewerDownload").href;
+  if (!href) return;
+  if (/iphone|ipad/i.test(navigator.userAgent)) {
+    return;
+  }
+  event.preventDefault();
+  const link = browserDocument.createElement("a");
+  link.href = href;
+  link.download = $("#imageViewerDownload").download || "receipt.jpg";
+  browserDocument.body.appendChild(link);
+  link.click();
+  link.remove();
 }
 
 function safeFileName(value) {

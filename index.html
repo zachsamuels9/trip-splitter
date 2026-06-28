@@ -14,7 +14,6 @@
     <link rel="icon" href="/favicon.ico" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
     <script src="/client.js" defer></script>
   </head>
   <body>
@@ -35,16 +34,19 @@
           </div>
         </header>
 
+        <button class="login-banner" id="loggedInBox">
+          <span id="loggedInAs">Not signed in</span>
+        </button>
+
         <section class="hero-card">
           <div>
-            <span id="loggedInAs">Not signed in</span>
             <span>Trip total</span>
             <strong id="tripTotal">$0.00</strong>
             <small id="personalTotal">Your share $0.00</small>
           </div>
           <div>
             <span>Receipts</span>
-            <strong id="receiptCount">0</strong>
+            <button class="counter-button" id="openReceipts"><strong id="receiptCount">0</strong></button>
           </div>
         </section>
 
@@ -130,6 +132,7 @@
           <p>Trip Split is ready</p>
           <strong>Save this app</strong>
           <span id="installPromptText">Use your browser share button, then choose Add to Home Screen.</span>
+          <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
         </section>
         <section class="panel" id="installInvitePanel">
           <label>
@@ -138,16 +141,26 @@
           </label>
           <button class="primary full secondary-action" id="installCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
         </section>
+      </section>
+
+      <section class="screen" id="screen-invite">
+        <header class="flow-header">
+          <button class="back-button" data-screen="settings" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Invite</h1>
+        </header>
         <section class="panel">
-          <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
-          <button class="primary full secondary-action" id="installDone"><i data-lucide="check"></i><span>Done</span></button>
+          <label>
+            <span>Trip invite link</span>
+            <input id="settingsInviteLink" type="text" readonly aria-label="Trip invite link" />
+          </label>
+          <button class="primary full" id="settingsCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
         </section>
       </section>
 
       <section class="screen" id="screen-manual">
         <header class="flow-header">
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
-          <h1>Manual receipt</h1>
+          <h1>Manual expense</h1>
         </header>
 
         <div class="step-line">
@@ -156,7 +169,7 @@
         </div>
 
         <section class="panel">
-          <h2>Receipt</h2>
+          <h2>Expense</h2>
           <div class="field-grid two">
             <label>
               <span>Currency</span>
@@ -172,7 +185,7 @@
             </label>
           </div>
             <label>
-              <span>Name</span>
+              <span>Name *</span>
               <input id="manualName" type="text" value="Dinner" />
             </label>
             <label>
@@ -464,20 +477,20 @@
       <section class="screen" id="screen-totals">
         <header class="flow-header">
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
-          <h1>Totals</h1>
+          <h1>Browse receipts</h1>
         </header>
-        <section class="panel">
-          <div class="section-title">
-            <h2>Running totals</h2>
-            <span>USD</span>
-          </div>
-          <div id="totalsList" class="totals-list"></div>
-        </section>
         <section class="panel">
           <div class="section-title">
             <h2>Receipts</h2>
             <span id="historyCount">0</span>
           </div>
+          <label>
+            <span>Sort by</span>
+            <select id="receiptSort">
+              <option value="entry">Entry date</option>
+              <option value="receipt">Receipt date</option>
+            </select>
+          </label>
           <div id="historyList" class="history-list"></div>
         </section>
       </section>
@@ -512,6 +525,7 @@
           <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
           <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>
           <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
+          <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
           <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span>Close trip and settle</span></button>
           <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Clear this trip</span></button>
         </section>
