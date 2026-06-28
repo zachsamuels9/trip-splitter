@@ -58,6 +58,7 @@ if (isBrowser) {
     if (isStartRoute() && !activeGroupId) {
       showStartOnboarding();
     } else if (!activeGroupId || activePersonId) {
+      if (activeGroupId && activePersonId) setAppGroupUrl();
       showScreen(activeGroupId ? "home" : "groups");
     }
   });
@@ -135,8 +136,8 @@ function currentGroupId() {
   const savedGroupId = readStorage("trip-split-group-id") || "";
   if (!isBrowser) return savedGroupId;
   try {
-    const invitedGroupId = startInviteGroupId();
-    if (invitedGroupId) return invitedGroupId;
+    const urlGroupId = urlGroupIdParam();
+    if (urlGroupId) return urlGroupId;
     return isStartRoute() ? "" : savedGroupId;
   } catch {
     return savedGroupId;
@@ -144,6 +145,10 @@ function currentGroupId() {
 }
 
 function startInviteGroupId() {
+  return isStartRoute() ? urlGroupIdParam() : "";
+}
+
+function urlGroupIdParam() {
   if (!isBrowser) return "";
   try {
     return new URLSearchParams(window.location.search).get("group") || "";
@@ -160,6 +165,18 @@ function isStartRoute() {
 function isAdminRoute() {
   if (!isBrowser) return false;
   return window.location.pathname.replace(/\/$/, "") === "/admin";
+}
+
+function appGroupPath(groupId = activeGroupId) {
+  return groupId ? `/?group=${encodeURIComponent(groupId)}` : "/";
+}
+
+function setAppGroupUrl() {
+  if (!isBrowser || isAdminRoute() || !activeGroupId) return;
+  const nextPath = appGroupPath();
+  if (`${window.location.pathname}${window.location.search}` !== nextPath) {
+    window.history.replaceState(null, "", nextPath);
+  }
 }
 
 function readStorage(key) {
@@ -394,6 +411,7 @@ async function initGroup() {
       return;
     }
     applyGroup(group);
+    setAppGroupUrl();
     startSync();
   } catch {
     $("#groupStatus").textContent = "Group server offline";
@@ -427,7 +445,7 @@ async function createGroupFromValues(rawName, rawPersonName, nextScreen) {
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     writeStorage(`trip-split-owner-${activeGroupId}`, activePersonId);
-    if (isBrowser) window.history.replaceState(null, "", "/");
+    setAppGroupUrl();
     applyGroup(result.group);
     rememberGroup(result.group, activePersonId);
     startSync();
@@ -460,7 +478,7 @@ async function joinGroup(event) {
     rememberGroup(result.group, activePersonId);
     startSync();
     render();
-    if (isBrowser) window.history.replaceState(null, "", "/");
+    setAppGroupUrl();
     installReturnScreen = "home";
     showScreen("install");
   } catch {
@@ -1831,7 +1849,7 @@ function leaveTrip() {
 }
 
 function renderInstallScreen() {
-  if (isBrowser && window.location.pathname !== "/") window.history.replaceState(null, "", "/");
+  setAppGroupUrl();
   $("#installBack").classList.remove("hidden");
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
     ? "This page is set to the trip home. Safari requires Share, then Add to Home Screen."
@@ -1905,6 +1923,7 @@ async function switchGroup(groupId) {
   writeStorage("trip-split-group-id", groupId);
   if (activePersonId) writeStorage(`trip-split-person-${groupId}`, activePersonId);
   await initGroup();
+  if (activePersonId) setAppGroupUrl();
   render();
   showScreen(activePersonId ? "home" : "join");
 }
@@ -2168,6 +2187,7 @@ function renderSummary() {
 function renderExpenses() {
   const personId = activePersonId || state.people[0]?.id;
   const person = findPerson(personId);
+  const openExpenseIds = new Set($$("#expensesList [data-expense-details][open]").map((details) => details.dataset.expenseDetails));
   const rows = [];
   let total = 0;
   state.receipts.forEach((receipt) => {
@@ -2192,7 +2212,7 @@ function renderExpenses() {
                 </div>
                 <div class="money">${money.format(toUsd(native, receipt.currency))}</div>
               </div>
-              <details class="settled-archive">
+              <details class="settled-archive" data-expense-details="${receipt.id}" ${openExpenseIds.has(receipt.id) ? "open" : ""}>
                 <summary>${items.length} item${items.length === 1 ? "" : "s"}</summary>
                 ${items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(itemShareForPerson(item, personId), receipt.currency)}</strong></div>`).join("")}
               </details>

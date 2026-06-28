@@ -632,8 +632,8 @@ textarea {
 
 .parsed-item-fields {
   display: grid;
-  grid-template-columns: 0.75fr 1fr;
-  gap: 8px;
+  grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
 }
 
 .item-title-line {
@@ -665,8 +665,8 @@ textarea {
 }
 
 .parsed-item-fields input {
-  min-height: 48px;
-  font-size: 16px;
+  min-height: 54px;
+  font-size: 17px;
 }
 
 .item-checkbox {
@@ -700,36 +700,43 @@ textarea {
 }
 
 .chip-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
 }
 
 .chip {
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 7px;
-  min-height: 38px;
+  gap: 10px;
+  min-height: 52px;
   margin: 0;
-  padding: 0 12px;
+  padding: 8px 12px;
   border: 1px solid #25314d;
-  border-radius: 999px;
+  border-radius: 14px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 950;
 }
 
+.chip span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .claim-qty {
-  width: 52px;
-  min-height: 32px;
+  width: 76px;
+  min-height: 42px;
   border-radius: 10px;
-  padding: 0 8px;
-  font-size: 14px;
+  padding: 0 10px;
+  font-size: 17px;
+  text-align: center;
 }
 
 .chip input {
-  width: 16px;
-  min-height: 16px;
+  width: 20px;
+  min-height: 20px;
   accent-color: var(--purple);
 }
 
@@ -1067,14 +1074,26 @@ svg {
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
+  html,
   body {
+    width: 100vh;
+    height: 100vw;
     overflow: hidden;
+  }
+
+  body {
+    position: fixed;
+    top: 0;
+    left: 100vw;
+    transform: rotate(90deg);
+    transform-origin: top left;
   }
 
   .shell {
     width: min(430px, 100vh);
-    min-height: 100vw;
-    transform: rotate(90deg) translateY(-100%);
-    transform-origin: top left;
+    height: 100vh;
+    min-height: 100vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }

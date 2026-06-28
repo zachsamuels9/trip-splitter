@@ -21,7 +21,10 @@ module.exports = async function handler(req, res) {
       return;
     }
 
-    const result = await readWithGoogleVision(imageBase64).catch(() => readWithOcrSpace(imageDataUrl));
+    const mimeType = imageDataUrl.match(/^data:([^;]+)/i)?.[1] || "image/jpeg";
+    const result = await readWithDocumentAi(imageBase64, mimeType)
+      .catch(() => readWithGoogleVision(imageBase64))
+      .catch(() => readWithOcrSpace(imageDataUrl));
     const text = result.text;
     if (!text) {
       res.status(422).json({ error: "OCR did not return text." });
@@ -32,6 +35,93 @@ module.exports = async function handler(req, res) {
     res.status(500).json({ error: error.message || "OCR failed." });
   }
 };
+
+async function readWithDocumentAi(imageBase64, mimeType) {
+  const projectId = process.env.GOOGLE_DOCUMENT_AI_PROJECT_ID;
+  const location = process.env.GOOGLE_DOCUMENT_AI_LOCATION || "us";
+  const processorId = process.env.GOOGLE_DOCUMENT_AI_PROCESSOR_ID;
+  if (!projectId || !processorId) throw new Error("Google Document AI is not configured.");
+
+  const accessToken = await documentAiAccessToken();
+  const response = await fetch(
+    `https://${location}-documentai.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/locations/${encodeURIComponent(location)}/processors/${encodeURIComponent(processorId)}:process`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        rawDocument: {
+          content: imageBase64,
+          mimeType,
+        },
+      }),
+    }
+  );
+  if (!response.ok) throw new Error("Google Document AI OCR failed.");
+  const data = await response.json();
+  const text = enhanceDocumentAiText(data.document);
+  return { provider: "Google Document AI", text };
+}
+
+async function documentAiAccessToken() {
+  const clientEmail = process.env.GOOGLE_DOCUMENT_AI_CLIENT_EMAIL || process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey = (process.env.GOOGLE_DOCUMENT_AI_PRIVATE_KEY || process.env.GOOGLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+  if (!clientEmail || !privateKey) throw new Error("Google Document AI service account is not configured.");
+
+  const now = Math.floor(Date.now() / 1000);
+  const assertion = signJwt(
+    { alg: "RS256", typ: "JWT" },
+    {
+      iss: clientEmail,
+      scope: "https://www.googleapis.com/auth/cloud-platform",
+      aud: "https://oauth2.googleapis.com/token",
+      exp: now + 3600,
+      iat: now,
+    },
+    privateKey
+  );
+
+  const response = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      assertion,
+    }),
+  });
+  if (!response.ok) throw new Error("Google Document AI authentication failed.");
+  const data = await response.json();
+  if (!data.access_token) throw new Error("Google Document AI authentication failed.");
+  return data.access_token;
+}
+
+function signJwt(header, payload, privateKey) {
+  const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(payload))}`;
+  const signature = require("crypto").createSign("RSA-SHA256").update(unsigned).sign(privateKey);
+  return `${unsigned}.${base64Url(signature)}`;
+}
+
+function base64Url(value) {
+  return Buffer.from(value)
+    .toString("base64")
+    .replace(/=/g, "")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
+}
+
+function enhanceDocumentAiText(document) {
+  const baseText = document?.text || "";
+  const entityLines = (document?.entities || [])
+    .map((entity) => {
+      const label = entity.type || "";
+      const value = entity.mentionText || entity.normalizedValue?.text || "";
+      return label && value ? `${label}: ${value}` : "";
+    })
+    .filter(Boolean);
+  return [baseText, ...entityLines].filter(Boolean).join("\n").trim();
+}
 
 async function readWithGoogleVision(imageBase64) {
   const apiKey = process.env.GOOGLE_VISION_API_KEY;
