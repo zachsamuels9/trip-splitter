@@ -635,7 +635,7 @@ textarea {
 
 .parsed-item-fields {
   display: grid;
-  grid-template-columns: 1.55fr 0.75fr;
+  grid-template-columns: 1.45fr 0.55fr 0.75fr;
   gap: 8px;
 }
 
@@ -715,6 +715,14 @@ textarea {
   font-weight: 950;
 }
 
+.claim-qty {
+  width: 52px;
+  min-height: 32px;
+  border-radius: 10px;
+  padding: 0 8px;
+  font-size: 14px;
+}
+
 .chip input {
   width: 16px;
   min-height: 16px;
@@ -773,9 +781,14 @@ textarea {
   place-items: center;
   border: 1px solid rgba(47, 208, 233, 0.54);
   border-radius: 16px;
-  background: rgba(47, 208, 233, 0.2);
+  background: rgba(47, 208, 233, 0.32);
   color: var(--cyan);
   font-weight: 1000;
+}
+
+.closed-banner {
+  border-color: rgba(255, 75, 85, 0.42);
+  background: rgba(255, 75, 85, 0.1);
 }
 
 #saveLaterReceipt {
@@ -903,6 +916,26 @@ textarea {
   color: white;
 }
 
+.confirmation-card {
+  grid-template-columns: 1fr;
+}
+
+.confirmation-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.confirmation-head strong {
+  margin-top: 0;
+  font-size: 28px;
+}
+
+.confirmation-copy {
+  display: grid;
+  gap: 6px;
+}
+
 .success-mark svg {
   width: 38px;
   height: 38px;
@@ -1026,5 +1059,18 @@ svg {
 
   .screen {
     padding-bottom: 190px;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 520px) {
+  body {
+    overflow: hidden;
+  }
+
+  .shell {
+    width: min(430px, 100vh);
+    min-height: 100vw;
+    transform: rotate(90deg) translateY(-100%);
+    transform-origin: top left;
   }
 }

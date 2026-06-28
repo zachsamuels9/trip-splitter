@@ -21,6 +21,7 @@
     <main class="shell">
       <section class="screen active" id="screen-start">
         <header class="flow-header">
+          <button class="back-button hidden" id="startBack" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>Create trip</h1>
         </header>
         <section class="panel">
@@ -58,6 +59,14 @@
         <button class="login-banner" id="loggedInBox">
           <span id="loggedInAs">Not signed in</span>
         </button>
+
+        <section class="panel closed-banner hidden" id="closedBanner">
+          <div class="section-title">
+            <h2>Trip closed</h2>
+            <span>Settle up</span>
+          </div>
+          <p class="subtext">New expenses are locked. Finish pending splits and use Settle to close balances.</p>
+        </section>
 
         <section class="hero-card">
           <div>
@@ -155,13 +164,6 @@
           <span id="installPromptText">Use your browser share button, then choose Add to Home Screen.</span>
           <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
           <button class="primary full secondary-action" id="installHome"><i data-lucide="home"></i><span>Go to trip</span></button>
-        </section>
-        <section class="panel" id="installInvitePanel">
-          <label>
-            <span>Trip invite link</span>
-            <input id="installInviteLink" type="text" readonly aria-label="Trip invite link" />
-          </label>
-          <button class="primary full secondary-action" id="installCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
         </section>
       </section>
 
@@ -319,7 +321,6 @@
           </summary>
           <div class="section-title">
             <h2>Review receipt</h2>
-            <button class="small-primary" id="addParsedItem"><i data-lucide="plus"></i><span>Add item</span></button>
           </div>
           <label>
             <span>Name</span>
@@ -339,12 +340,10 @@
               <select id="reviewPaidBy"></select>
             </label>
           </div>
-          <div class="field-grid two">
-            <label>
-              <span>Date</span>
-              <input id="reviewDate" type="date" />
-            </label>
-          </div>
+          <label>
+            <span>Date</span>
+            <input id="reviewDate" type="date" />
+          </label>
           <div class="field-grid two">
             <label>
               <span>Tip</span>
@@ -390,6 +389,7 @@
             <span id="itemCountLabel">0 items</span>
           </div>
           <div id="itemsList" class="items-list"></div>
+          <button class="small-primary full" id="addParsedItem"><i data-lucide="plus"></i><span>Add item</span></button>
           <div id="feesList" class="fees-list"></div>
         </section>
 
@@ -452,10 +452,14 @@
           <h1>Receipt logged</h1>
         </header>
         <section class="receipt-card confirmation-card">
-          <div class="success-mark"><i data-lucide="check"></i></div>
-          <p id="confirmationKicker">Saved to trip</p>
-          <strong id="confirmationTitle">Receipt</strong>
-          <span id="confirmationDetail">$0.00</span>
+          <div class="confirmation-head">
+            <div class="success-mark"><i data-lucide="check"></i></div>
+            <strong id="confirmationTitle">Receipt</strong>
+          </div>
+          <div class="confirmation-copy">
+            <p id="confirmationKicker">Saved to trip</p>
+            <span id="confirmationDetail">$0.00</span>
+          </div>
         </section>
         <section class="panel confirmation-actions">
           <button class="primary full" id="confirmationHome"><i data-lucide="home"></i><span>Return home</span></button>

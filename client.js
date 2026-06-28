@@ -35,6 +35,7 @@ if (isBrowser) {
     bindEvents();
     seedManualRows();
     registerServiceWorker();
+    lockPortraitOrientation();
     state.receipts = normalizeReceipts(state.receipts);
     refreshRates();
     if (isStartRoute() && !startInviteGroupId()) {
@@ -220,12 +221,12 @@ function bindEvents() {
     state = defaultState();
     render();
     if (isBrowser) window.history.pushState(null, "", "/start");
-    showStartOnboarding();
+    showStartOnboarding("groups");
   });
+  $("#startBack").addEventListener("click", () => showScreen("groups"));
   $("#installNative").addEventListener("click", promptInstall);
   $("#installHome").addEventListener("click", () => showScreen("home"));
   $("#installBack").addEventListener("click", () => showScreen(installReturnScreen));
-  $("#installCopyInvite").addEventListener("click", copyInviteLink);
   $("#showInstallHelp").addEventListener("click", () => {
     installReturnScreen = "settings";
     showScreen("install");
@@ -245,6 +246,9 @@ function bindEvents() {
   $("#itemizeReceiptPreview").addEventListener("click", openReceiptImagePreview);
   $("#closeImageViewer").addEventListener("click", closeReceiptImagePreview);
   $("#imageViewerDownload").addEventListener("click", downloadPreviewImage);
+  browserDocument.addEventListener("focusin", (event) => {
+    if (event.target?.matches?.('input[type="number"]') && Number(event.target.value || 0) === 0) event.target.value = "";
+  });
 
   $("#openManual").addEventListener("click", () => {
     setTodayIfBlank();
@@ -322,9 +326,15 @@ function updateBackTargets(name) {
   if (name === "home") settingsReturnScreens.clear();
 }
 
-function showStartOnboarding() {
+function showStartOnboarding(returnTo = "") {
   browserDocument?.body.classList.remove("start-onboarding");
+  $("#startBack").classList.toggle("hidden", returnTo !== "groups");
   showScreen("start");
+}
+
+function lockPortraitOrientation() {
+  if (!isBrowser || !screen.orientation?.lock) return;
+  screen.orientation.lock("portrait").catch(() => {});
 }
 
 async function refreshRates() {
@@ -446,7 +456,7 @@ async function copyInviteLink() {
   if (!activeGroupId) return;
   const link = inviteUrl();
   const activeScreen = $(".screen.active")?.id;
-  const visibleInput = activeScreen === "screen-invite" ? $("#settingsInviteLink") : activeScreen === "screen-install" ? $("#installInviteLink") : $("#inviteLink");
+  const visibleInput = activeScreen === "screen-invite" ? $("#settingsInviteLink") : $("#inviteLink");
   if (visibleInput) {
     visibleInput.value = link;
     visibleInput.select();
@@ -683,31 +693,54 @@ function parseReceipt(text, currency, meta = {}) {
   const items = [];
   const fees = [];
   let discount = 0;
+  let explicitTotal = 0;
 
   lines.forEach((line) => {
     const amount = extractTrailingAmount(line, currency);
     if (!amount || amount.value === 0) return;
     const rawLabel = line.slice(0, amount.index).replace(/[^\w\s&'()./-]/g, " ").replace(/\s+/g, " ").trim();
-    if (!isUsefulReceiptLabel(rawLabel)) return;
-
     const normalized = rawLabel.toLowerCase();
-    const itemName = cleanItemName(rawLabel);
-    const entry = { id: createId(), name: toTitle(itemName), amount: Math.abs(amount.value), assignedTo: [] };
 
     if (/(discount|promo|coupon|comp)/i.test(normalized)) {
       discount += Math.abs(amount.value);
       return;
     }
 
-    const adjustment = adjustmentKind(normalized);
-    if (adjustment) {
-      if (adjustment === "discount") discount += Math.abs(amount.value);
-      else fees.push({ id: entry.id, name: adjustmentLabel(adjustment), amount: Math.abs(amount.value) });
+    if (isTotalLine(normalized)) {
+      explicitTotal = Math.max(explicitTotal, Math.abs(amount.value));
       return;
     }
 
+    const adjustment = adjustmentKind(normalized);
+    if (adjustment) {
+      if (adjustment === "discount") discount += Math.abs(amount.value);
+      else fees.push({ id: createId(), name: adjustmentLabel(adjustment), amount: Math.abs(amount.value) });
+      return;
+    }
+
+    if (!isUsefulReceiptLabel(rawLabel)) return;
+
+    const quantityInfo = parseQuantityFromLabel(rawLabel);
+    const itemName = cleanItemName(quantityInfo.label);
+    const totalAmount = Math.abs(amount.value);
+    const quantity = quantityInfo.quantity;
+    const entry = {
+      id: createId(),
+      name: toTitle(itemName),
+      amount: totalAmount,
+      quantity,
+      unitPrice: roundCents(totalAmount / quantity),
+      assignedTo: [],
+      claims: {},
+    };
+
     if (isLikelyFoodItem(itemName, amount.value, currency)) items.push(entry);
   });
+
+  const calculatedTotal = sum(items.map((item) => item.amount)) + sum(fees.map((fee) => fee.amount)) - discount;
+  if (explicitTotal > calculatedTotal + 0.02 && items.length) {
+    fees.push({ id: createId(), name: "Unitemized amount", amount: roundCents(explicitTotal - calculatedTotal) });
+  }
 
   return {
     currency,
@@ -722,6 +755,26 @@ function parseReceipt(text, currency, meta = {}) {
     fees,
     discount,
   };
+}
+
+function isTotalLine(text) {
+  return /\b(total|amount due|balance due|grand total|net total)\b/i.test(text) && !/\b(subtotal|sub total|tax|tip|discount)\b/i.test(text);
+}
+
+function parseQuantityFromLabel(label) {
+  let text = String(label || "").trim();
+  let quantity = 1;
+  const leading = text.match(/^(\d+(?:\.\d+)?)\s*(?:x|×|@)?\s+(.+)$/i);
+  if (leading && Number(leading[1]) > 0 && Number(leading[1]) <= 99) {
+    quantity = Number(leading[1]);
+    text = leading[2].trim();
+  }
+  const multiplier = text.match(/^(.+?)\s+(\d+(?:\.\d+)?)\s*(?:x|×|@)\s*$/i);
+  if (multiplier && Number(multiplier[2]) > 0 && Number(multiplier[2]) <= 99) {
+    quantity = Number(multiplier[2]);
+    text = multiplier[1].trim();
+  }
+  return { quantity, label: text };
 }
 
 function adjustmentKind(text) {
@@ -963,7 +1016,10 @@ function buildManualReceipt() {
       id: createId(),
       name: item.name,
       amount: item.total,
+      quantity: item.qty,
+      unitPrice: item.price,
       assignedTo: [],
+      claims: {},
     })),
     fees,
     discount: draft.discount,
@@ -998,7 +1054,9 @@ function renderAssignment() {
   $("#itemsList").innerHTML = parsedReceipt.items.length
     ? parsedReceipt.items
         .map(
-          (item) => `
+          (item) => {
+            const quantity = itemQuantity(item);
+            return `
             <article class="item-row">
               <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
                 <i data-lucide="trash-2"></i>
@@ -1009,8 +1067,12 @@ function renderAssignment() {
                     <span>Item</span>
                     <input data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" />
                   </label>
+                  <label>
+                    <span>Qty</span>
+                    <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" />
+                  </label>
                   <label class="currency-input">
-                    <span>Amount</span>
+                    <span>Total</span>
                     <em>${currencySymbol(parsedReceipt.currency)}</em>
                     <input data-edit-item-amount="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(item.amount)}" />
                   </label>
@@ -1023,13 +1085,15 @@ function renderAssignment() {
                       <label class="chip">
                         <input type="checkbox" data-item="${item.id}" data-person="${person.id}" ${item.assignedTo?.includes(person.id) ? "checked" : ""}>
                         <span>${escapeHtml(person.name)}</span>
+                        ${quantity > 1 ? `<input class="claim-qty" data-claim-qty="${item.id}" data-person="${person.id}" type="number" min="0" max="${quantity}" step="1" inputmode="numeric" value="${escapeHtml(itemClaimQuantity(item, person.id) || "")}" aria-label="${escapeHtml(person.name)} quantity" />` : ""}
                       </label>
                     `
                   )
                   .join("")}
               </div>
             </article>
-          `
+          `;
+          }
         )
         .join("")
     : `<div class="empty">No priced food items found.</div>`;
@@ -1047,6 +1111,16 @@ function renderAssignment() {
   });
   $$("[data-edit-item-amount]").forEach((input) => {
     input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
+  });
+  $$("[data-edit-item-qty]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemQty));
+  });
+  $$("[data-claim-qty]").forEach((input) => {
+    input.addEventListener("input", () => {
+      const box = $(`input[data-item="${input.dataset.claimQty}"][data-person="${input.dataset.person}"]`);
+      if (box && Number(input.value || 0) > 0) box.checked = true;
+      updateSelectionBar();
+    });
   });
   makeIcons();
   updateSelectionBar();
@@ -1167,8 +1241,12 @@ function updateParsedItem(itemId) {
   if (!item) return;
   const name = $(`[data-edit-item-name="${itemId}"]`)?.value.trim();
   const amount = Number($(`[data-edit-item-amount="${itemId}"]`)?.value || 0);
+  const quantity = Math.max(1, Number($(`[data-edit-item-qty="${itemId}"]`)?.value || item.quantity || 1));
   item.name = name || "Item";
   item.amount = Math.max(0, amount);
+  item.quantity = quantity;
+  item.unitPrice = quantity ? roundCents(item.amount / quantity) : item.amount;
+  item.claims = clampClaims(item);
   renderAssignment();
 }
 
@@ -1178,7 +1256,10 @@ function addParsedItem() {
     id: createId(),
     name: "New item",
     amount: 0,
+    quantity: 1,
+    unitPrice: 0,
     assignedTo: activePersonId ? [activePersonId] : [],
+    claims: activePersonId ? { [activePersonId]: 1 } : {},
   });
   renderAssignment();
 }
@@ -1265,7 +1346,26 @@ function updateAmountRemaining() {
 function collectAssignmentChoices() {
   if (!parsedReceipt) return;
   parsedReceipt.items.forEach((item) => {
-    item.assignedTo = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
+    const quantity = itemQuantity(item);
+    const checkedPeople = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
+    if (quantity > 1) {
+      let remaining = quantity;
+      const claims = {};
+      checkedPeople.forEach((personId) => {
+        const input = $(`[data-claim-qty="${item.id}"][data-person="${personId}"]`);
+        const requested = Math.max(0, Math.floor(Number(input?.value || 1)));
+        const claim = Math.min(remaining, requested || 1);
+        if (claim > 0) {
+          claims[personId] = claim;
+          remaining -= claim;
+        }
+      });
+      item.claims = claims;
+      item.assignedTo = Object.keys(claims);
+    } else {
+      item.assignedTo = checkedPeople;
+      item.claims = {};
+    }
   });
 }
 
@@ -1291,7 +1391,51 @@ function selectedAdjustmentShare() {
 }
 
 function itemShareForActivePerson(item) {
+  return itemShareForPerson(item, activePersonId || $("#reviewPaidBy").value);
+}
+
+function itemShareForPerson(item, personId) {
+  if (!personId || !(item.assignedTo || []).includes(personId)) return 0;
+  const claims = item.claims || {};
+  const claimedTotal = sum(Object.values(claims));
+  if (itemQuantity(item) > 1 && claimedTotal > 0) return Number(item.amount || 0) * (Number(claims[personId] || 0) / itemQuantity(item));
   return Number(item.amount || 0) / Math.max(1, (item.assignedTo || []).length);
+}
+
+function itemQuantity(item) {
+  return Math.max(1, Math.floor(Number(item.quantity || 1)));
+}
+
+function itemClaimQuantity(item, personId) {
+  const claims = item.claims || {};
+  return Number(claims[personId] || 0);
+}
+
+function clampClaims(item) {
+  const quantity = itemQuantity(item);
+  let remaining = quantity;
+  const claims = {};
+  Object.entries(item.claims || {}).forEach(([personId, value]) => {
+    const claim = Math.min(remaining, Math.max(0, Math.floor(Number(value || 0))));
+    if (claim > 0) {
+      claims[personId] = claim;
+      remaining -= claim;
+    }
+  });
+  return claims;
+}
+
+function distributeQuantity(quantity, people) {
+  const claims = {};
+  let remaining = quantity;
+  people.forEach((personId, index) => {
+    const slots = people.length - index;
+    const claim = Math.max(0, Math.floor(remaining / slots));
+    if (claim > 0) claims[personId] = claim;
+    remaining -= claim;
+  });
+  if (remaining > 0 && people[0]) claims[people[0]] = (claims[people[0]] || 0) + remaining;
+  return claims;
 }
 
 function updateSelectionBar() {
@@ -1356,6 +1500,11 @@ function convertedLine(amount, currency) {
 
 function saveReceipt(assignLater = false, directToExpenses = false) {
   if (!parsedReceipt) return;
+  if (isTripClosed() && !editingReceiptId) {
+    safeAlert("This trip is closed. New expenses are locked.");
+    showScreen("home");
+    return;
+  }
   const paidBy = $("#reviewPaidBy").value;
   if (!paidBy) {
     safeAlert("Add at least one person and choose who paid.");
@@ -1365,12 +1514,15 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
   if (assignLater) {
     parsedReceipt.items.forEach((item) => {
       item.assignedTo = [];
+      item.claims = {};
     });
     parsedReceipt.splitEvenCount = null;
   } else if (splitMode === "even") {
     const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
     parsedReceipt.items.forEach((item) => {
       item.assignedTo = people;
+      const quantity = itemQuantity(item);
+      item.claims = quantity > 1 ? distributeQuantity(quantity, people) : {};
     });
     parsedReceipt.splitEvenCount = people.length;
   } else if (splitMode === "amounts") {
@@ -1381,7 +1533,10 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
         id: createId(),
         name: `Share - ${findPerson(personId)?.name || "Guest"}`,
         amount,
+        quantity: 1,
+        unitPrice: amount,
         assignedTo: [personId],
+        claims: {},
       }));
     parsedReceipt.fees = [];
     parsedReceipt.discount = 0;
@@ -1403,7 +1558,7 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
         : calculateItemShares(parsedReceipt);
   const receipt = {
     id: editingReceiptId || createId(),
-    createdAt: new Date().toISOString(),
+    createdAt: state.receipts.find((existing) => existing.id === editingReceiptId)?.createdAt || new Date().toISOString(),
     currency: parsedReceipt.currency,
     name: parsedReceipt.name,
     date: parsedReceipt.date,
@@ -1414,7 +1569,7 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
     paidBy,
     splitMode: savedSplitMode,
     splitCount: assignLater ? null : splitCount,
-    assignmentStatus: assignLater || parsedReceipt.items.some((item) => !item.assignedTo.length) ? "pending" : "complete",
+    assignmentStatus: assignLater || parsedReceipt.items.some(itemHasUnassignedQuantity) ? "pending" : "complete",
     items: parsedReceipt.items,
     fees: parsedReceipt.fees,
     discount: parsedReceipt.discount || 0,
@@ -1441,9 +1596,8 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
 function calculateItemShares(receipt) {
   const native = emptyPersonMap();
   receipt.items.forEach((item) => {
-    const split = item.amount / item.assignedTo.length;
     item.assignedTo.forEach((personId) => {
-      native[personId] += split;
+      native[personId] += itemShareForPerson(item, personId);
     });
   });
 
@@ -1503,16 +1657,29 @@ function toUsd(amount, currency) {
 function normalizeReceipts(receipts = []) {
   return receipts.map((receipt) => {
     const currency = receipt.currency || "USD";
-    const totalNative = Number(receipt.totalNative ?? receipt.totalUsd ?? receiptTotal(receipt));
+    const items = (receipt.items || []).map((item) => normalizeItem(item));
+    const normalizedReceipt = { ...receipt, items, fees: receipt.fees || [], discount: receipt.discount || 0 };
+    const totalNative = Number(receipt.totalNative ?? receipt.totalUsd ?? receiptTotal(normalizedReceipt));
     const sharesNative = receipt.shares?.native || receipt.shares?.usd || {};
     return {
-      ...receipt,
+      ...normalizedReceipt,
       totalNative,
       totalUsd: toUsd(totalNative, currency),
       rateUsed: currency === "USD" ? 1 : rates.rates[currency] || receipt.rateUsed || 1,
       shares: withUsd(sharesNative, currency),
     };
   });
+}
+
+function normalizeItem(item) {
+  const quantity = itemQuantity(item);
+  return {
+    ...item,
+    quantity,
+    unitPrice: Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount || 0)),
+    assignedTo: item.assignedTo || [],
+    claims: item.claims || {},
+  };
 }
 
 function render() {
@@ -1538,6 +1705,7 @@ function renderGroupUi() {
   $("#homeTripTitle").textContent = activeGroup?.name || "Group expenses";
   const closed = isTripClosed();
   $(".action-panel")?.classList.toggle("hidden", closed);
+  $("#closedBanner")?.classList.toggle("hidden", !closed);
   $("#settlementList")?.closest(".panel")?.classList.toggle("settle-focus", closed);
   $("#groupSignedOut").classList.toggle("hidden", signedIn);
   $("#groupSignedIn").classList.toggle("hidden", !signedIn);
@@ -1556,13 +1724,18 @@ function renderGroupUi() {
 }
 
 function isTripClosed() {
-  return readStorage(`trip-split-closed-${activeGroupId}`) === "true";
+  return activeGroup?.status === "closed" || Boolean(activeGroup?.closedAt) || readStorage(`trip-split-closed-${activeGroupId}`) === "true";
 }
 
-function closeTrip() {
+async function closeTrip() {
   if (!activeGroupId || !isTripOwner()) return;
   if (!safeConfirm("Close this trip for settlement?")) return;
-  writeStorage(`trip-split-closed-${activeGroupId}`, "true");
+  try {
+    const result = await api(`/api/groups/${activeGroupId}/close`, { method: "POST" });
+    applyGroup(result.group);
+  } catch {
+    writeStorage(`trip-split-closed-${activeGroupId}`, "true");
+  }
   render();
   showScreen("settle");
 }
@@ -1583,8 +1756,6 @@ function leaveTrip() {
 
 function renderInstallScreen() {
   if (isBrowser && window.location.pathname !== "/") window.history.replaceState(null, "", "/");
-  $("#installInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
-  $("#installInvitePanel").classList.toggle("hidden", !isTripOwner());
   $("#installBack").classList.remove("hidden");
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
     ? "This page is set to the trip home. Tap Share in Safari, then Add to Home Screen."
@@ -1783,7 +1954,14 @@ function isPendingReceipt(receipt) {
 }
 
 function unassignedItemCount(receipt) {
-  return (receipt.items || []).filter((item) => !(item.assignedTo || []).length).length;
+  return (receipt.items || []).filter(itemHasUnassignedQuantity).length;
+}
+
+function itemHasUnassignedQuantity(item) {
+  if (!(item.assignedTo || []).length) return true;
+  const quantity = itemQuantity(item);
+  if (quantity <= 1) return false;
+  return sum(Object.values(item.claims || {})) < quantity;
 }
 
 function openReceiptForClaiming(receiptId) {
@@ -1881,10 +2059,10 @@ function renderExpenses() {
   const rows = [];
   let total = 0;
   state.receipts.forEach((receipt) => {
-    if (isPendingReceipt(receipt)) return;
     const items = (receipt.items || []).filter((item) => (item.assignedTo || []).includes(personId));
     if (!items.length) return;
-    const native = items.reduce((sumValue, item) => sumValue + item.amount / Math.max(1, item.assignedTo.length), 0);
+    const itemNative = items.reduce((sumValue, item) => sumValue + itemShareForPerson(item, personId), 0);
+    const native = Number(receipt.shares?.native?.[personId] || 0) || itemNative;
     total += toUsd(native, receipt.currency);
     rows.push({ receipt, items, native });
   });
@@ -1904,7 +2082,7 @@ function renderExpenses() {
               </div>
               <details class="settled-archive">
                 <summary>${items.length} item${items.length === 1 ? "" : "s"}</summary>
-                ${items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount / Math.max(1, item.assignedTo.length), receipt.currency)}</strong></div>`).join("")}
+                ${items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(itemShareForPerson(item, personId), receipt.currency)}</strong></div>`).join("")}
               </details>
             </article>
           `

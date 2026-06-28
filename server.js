@@ -1,7 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { addPerson, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("./lib/group-store");
+const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("./lib/group-store");
 
 const root = fs.existsSync(path.join(__dirname, "public")) ? path.join(__dirname, "public") : __dirname;
 const port = Number(process.env.PORT || 4173);
@@ -92,7 +92,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts))?$/);
+  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close))?$/);
   if (!groupMatch) {
     sendJson(res, 404, { error: "Not found" });
     return;
@@ -114,6 +114,12 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && groupMatch[2] === "receipts") {
     const body = await readBody(req);
     const result = await upsertReceipt(groupMatch[1], body.receipt);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && groupMatch[2] === "close") {
+    const result = await closeGroup(groupMatch[1]);
     sendJson(res, 200, result);
     return;
   }
