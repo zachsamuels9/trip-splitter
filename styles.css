@@ -889,6 +889,228 @@ textarea {
   display: none;
 }
 
+.currency-review {
+  display: grid;
+  grid-template-columns: 1fr 120px;
+  gap: 12px;
+  align-items: center;
+  border-color: rgba(255, 200, 60, 0.46);
+  background: rgba(255, 200, 60, 0.1);
+}
+
+.confirm-item-card,
+.select-item-row {
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: rgba(15, 21, 36, 0.96);
+  padding: 16px;
+}
+
+.confirm-item-card {
+  display: grid;
+  gap: 14px;
+}
+
+.confirm-item-head {
+  display: grid;
+  grid-template-columns: 1fr 44px;
+  gap: 12px;
+  align-items: center;
+}
+
+.confirm-item-body {
+  display: grid;
+  grid-template-columns: minmax(104px, 1fr) 132px auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.compact-price {
+  margin: 0;
+}
+
+.confirm-qty {
+  display: grid;
+  grid-template-columns: 42px 48px 42px;
+  align-items: end;
+  overflow: hidden;
+  border: 1px solid rgba(129, 56, 244, 0.88);
+  border-radius: 15px;
+  background: rgba(129, 56, 244, 0.92);
+}
+
+.confirm-qty button {
+  min-height: 52px;
+  color: #fff;
+  background: transparent;
+}
+
+.confirm-qty input {
+  min-height: 52px;
+  border: 0;
+  border-radius: 0;
+  background: rgba(9, 12, 24, 0.96);
+  padding: 0;
+  text-align: center;
+  font-size: 20px;
+  font-weight: 1000;
+}
+
+.select-item-row {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  position: relative;
+}
+
+.select-item-row.selected {
+  border-color: rgba(129, 56, 244, 0.68);
+  box-shadow: inset 4px 0 0 var(--purple);
+}
+
+.select-item-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.select-item-copy strong {
+  color: var(--ink);
+  font-size: 23px;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.select-item-copy span {
+  color: var(--muted);
+  font-size: 17px;
+  font-weight: 850;
+}
+
+.select-item-copy em {
+  color: var(--cyan);
+  font-style: normal;
+  font-weight: 1000;
+}
+
+.scan-result-card {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  gap: 28px 18px;
+  border: 1px solid rgba(129, 56, 244, 0.55);
+  border-radius: 28px;
+  background: linear-gradient(145deg, rgba(65, 31, 116, 0.92), rgba(28, 18, 52, 0.96));
+  padding: 26px;
+  box-shadow: 0 28px 70px rgba(32, 17, 61, 0.32);
+}
+
+.scan-result-card > div:first-child {
+  grid-column: 1 / -1;
+}
+
+.scan-result-card p,
+.scan-result-meta span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 1000;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scan-result-card strong {
+  display: block;
+  margin-top: 8px;
+  color: #fff;
+  font-size: 40px;
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+
+.scan-result-meta strong {
+  font-size: 30px;
+}
+
+.step-label {
+  margin: 32px 0 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 22px;
+  font-weight: 1000;
+}
+
+.choice-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.choice-card {
+  display: grid;
+  grid-template-columns: 72px 1fr 26px;
+  gap: 18px;
+  align-items: center;
+  min-height: 132px;
+  border-radius: 28px;
+  padding: 20px;
+  color: white;
+  text-align: left;
+}
+
+.choice-card > svg:first-child {
+  width: 64px;
+  height: 64px;
+  padding: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.choice-card strong,
+.choice-card small {
+  display: block;
+}
+
+.choice-card strong {
+  font-size: 32px;
+  line-height: 1;
+}
+
+.choice-card small {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 850;
+}
+
+.choice-card.purple {
+  background: linear-gradient(135deg, #8a3ffc, #5b1fa1);
+}
+
+.choice-card.cyan {
+  background: linear-gradient(135deg, #36d5ea, #2586d8);
+}
+
+.choice-card.green {
+  background: linear-gradient(135deg, #16c58d, #09805e);
+}
+
+.or-divider {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 16px;
+  align-items: center;
+  color: var(--muted);
+  font-weight: 1000;
+}
+
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  height: 2px;
+  background: rgba(148, 163, 184, 0.36);
+}
+
 .parsed-item-fields {
   display: grid;
   grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);

@@ -358,7 +358,7 @@
 
         <section class="receipt-card">
           <div>
-            <p>Receipt total</p>
+            <p id="itemizeKicker">Smart scan by AI</p>
             <strong id="parsedTotal">$0.00</strong>
             <span id="scanStatus"></span>
             <span id="parsedPaidBy"></span>
@@ -366,6 +366,18 @@
           <button class="receipt-thumb hidden" id="itemizeReceiptPreview" aria-label="Open receipt photo">
             <img id="itemizeReceiptImage" alt="Receipt photo" />
           </button>
+        </section>
+
+        <section class="panel hidden currency-review" id="currencyReviewPrompt">
+          <div>
+            <strong>Confirm currency</strong>
+            <p class="subtext">This receipt may be from Thailand or Vietnam. Choose the currency before continuing.</p>
+          </div>
+          <select id="currencyReviewSelect">
+            <option value="THB">THB</option>
+            <option value="VND">VND</option>
+            <option value="USD">USD</option>
+          </select>
         </section>
 
         <details class="panel receipt-details">
@@ -486,6 +498,46 @@
           <button class="secondary-submit" id="saveLaterReceipt"><span>Assign later</span></button>
           <button class="sticky-submit hidden" id="reviewSelections"><span id="saveReceiptLabel">Review selections</span></button>
         </div>
+      </section>
+
+      <section class="screen" id="screen-split-choice">
+        <header class="flow-header">
+          <button class="back-button" data-screen="itemize" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Smart Scan</h1>
+        </header>
+        <section class="scan-result-card">
+          <div>
+            <p>Receipt from</p>
+            <strong id="splitChoiceName">Receipt</strong>
+          </div>
+          <div class="scan-result-meta">
+            <span>Date</span>
+            <strong id="splitChoiceDate">Today</strong>
+          </div>
+          <div class="scan-result-meta">
+            <span>Total</span>
+            <strong id="splitChoiceTotal">$0.00</strong>
+          </div>
+        </section>
+        <p class="step-label">Step 2: Pick your split method</p>
+        <section class="choice-stack">
+          <button class="choice-card purple" id="choosePickItems">
+            <i data-lucide="list"></i>
+            <span><strong>Pick items</strong><small>Review items and let friends claim theirs</small></span>
+            <i data-lucide="chevron-right"></i>
+          </button>
+          <button class="choice-card cyan" id="chooseSplitEvenly">
+            <i data-lucide="users"></i>
+            <span><strong>Split evenly</strong><small>Divide the total evenly for everyone</small></span>
+            <i data-lucide="chevron-right"></i>
+          </button>
+          <div class="or-divider"><span>OR</span></div>
+          <button class="choice-card green" id="chooseAssignLater">
+            <i data-lucide="plus"></i>
+            <span><strong>Assign later</strong><small>Add to group now and split later</small></span>
+            <i data-lucide="chevron-right"></i>
+          </button>
+        </section>
       </section>
 
       <section class="screen" id="screen-selection-review">

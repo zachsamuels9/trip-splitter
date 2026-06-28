@@ -14,6 +14,7 @@ let parsedReceipt = null;
 let initiallyCoveredItemIds = new Set();
 let manualAttachmentDataUrl = "";
 let splitMode = "items";
+let itemizeStage = "confirm";
 let splitCount = 2;
 let splitEvenPeople = [];
 let editingReceiptId = null;
@@ -317,6 +318,16 @@ function bindEvents() {
   $("#reviewSelections").addEventListener("click", reviewSelections);
   $("#acceptSelections").addEventListener("click", () => saveReceipt(false, true));
   $("#saveLaterReceipt").addEventListener("click", () => saveReceipt(true));
+  $("#choosePickItems").addEventListener("click", () => beginSplitMethod("items"));
+  $("#chooseSplitEvenly").addEventListener("click", () => beginSplitMethod("even"));
+  $("#chooseAssignLater").addEventListener("click", () => saveReceipt(true));
+  $("#currencyReviewSelect").addEventListener("change", () => {
+    if (!parsedReceipt) return;
+    parsedReceipt.currency = $("#currencyReviewSelect").value;
+    parsedReceipt.currencyNeedsReview = false;
+    syncReviewFields();
+    renderAssignment();
+  });
   $("#confirmationHome").addEventListener("click", () => showScreen("home"));
   $("#confirmationAddAnother").addEventListener("click", () => {
     resetScanStatus();
@@ -720,22 +731,20 @@ async function scanImage(event) {
     const ocr = await readReceiptText(imageDataUrl);
     setScanStep("extracting", true);
     const text = ocr.text || "";
-    const detectedCurrency = inferReceiptCurrency(ocr.receipt, text, $("#receiptCurrency").value);
+    const detectedCurrency = inferReceiptCurrency(ocr.receipt, text, $("#receiptCurrency").value).currency;
     $("#receiptCurrency").value = detectedCurrency;
     parsedReceipt = receiptFromOcrResult(ocr, imageDataUrl, detectedCurrency);
     parsedReceipt.ocrText = text;
     if (!parsedReceipt.items.length) {
       updateScanProgress("Needs review", "Document AI did not return priced items. Add them manually below.", false);
-      showScreen("itemize");
-      renderAssignment();
+      showConfirmItems();
       return;
     }
     splitMode = "items";
     setSplitMode("items");
     updateScanProgress("Receipt read", `Ready to review in ${detectedCurrency} with ${ocr.provider}.`, false);
-    showScreen("itemize");
     $("#scanStatus").textContent = "";
-    renderAssignment();
+    showConfirmItems();
   } catch (error) {
     updateScanProgress("Scan failed", error.message || "Could not read that photo. Try a brighter image or use manual entry.", false);
   } finally {
@@ -835,7 +844,8 @@ function prepareScanReceipt() {
 function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
   const structured = ocr.receipt || {};
   const text = ocr.text || "";
-  const currency = inferReceiptCurrency(structured, text, fallbackCurrency);
+  const currencyGuess = inferReceiptCurrency(structured, text, fallbackCurrency);
+  const currency = currencyGuess.currency;
   const fallbackName = structured.merchant || detectRestaurantName(text) || "Scanned receipt";
   const fallback = parseReceipt(text, currency, {
     name: fallbackName,
@@ -877,6 +887,7 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
     items: items.length ? items : fallback.items,
     fees: fees.length ? fees : fallback.fees,
     discount,
+    currencyNeedsReview: currencyGuess.needsReview,
     ocrProvider: ocr.provider,
     ocrWarnings: structured.warnings || [],
   };
@@ -892,8 +903,13 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
 function inferReceiptCurrency(receipt, text, fallback = "USD") {
   const context = [text, receipt?.merchant, ...(receipt?.lineItems || []).map((item) => `${item.name || ""} ${item.currency || ""}`)].join("\n");
   const contextCurrency = detectCurrency(context, "");
-  if (contextCurrency && (contextCurrency !== "USD" || !/\$|\bUSD\b/i.test(context))) return contextCurrency;
-  return receipt?.currency || contextCurrency || fallback || "USD";
+  const receiptCurrency = supportedCurrencies.includes(receipt?.currency) ? receipt.currency : "";
+  if (contextCurrency && contextCurrency !== "USD") return { currency: contextCurrency, needsReview: false };
+  if (receiptCurrency && receiptCurrency !== "USD") return { currency: receiptCurrency, needsReview: false };
+  if (receiptCurrency === "USD" && /\bUSD\b|United States|Arizona|California|New York|Texas|Florida/i.test(context)) return { currency: "USD", needsReview: false };
+  if (contextCurrency === "USD" && /\bUSD\b/i.test(context)) return { currency: "USD", needsReview: false };
+  const safeFallback = supportedCurrencies.includes(fallback) ? fallback : "THB";
+  return { currency: safeFallback || "THB", needsReview: safeFallback === "USD" };
 }
 
 function parseReceipt(text, currency, meta = {}) {
@@ -1013,10 +1029,10 @@ function normalizeDateParts(year, month, day) {
 
 function detectCurrency(text, fallback = "USD") {
   const sample = text || "";
-  if (/[฿]|(?:\bTHB\b|\bBAHT\b|\bBANGKOK\b|\bPHUKET\b|\bCHIANG\s*MAI\b|\bTHAILAND\b|ถนน|กรุงเทพ|บาท)/i.test(sample)) return "THB";
-  if (/[₫]|(?:\bVND\b|\bDONG\b|\bVIETNAM\b|\bVNĐ\b|\bHANOI\b|\bSAIGON\b|\bHO CHI MINH\b|đường|quận)/i.test(sample)) return "VND";
-  if (/\$|\bUSD\b/i.test(sample)) return "USD";
-  return supportedCurrencies.includes(fallback) ? fallback : "USD";
+  if (/[฿]|(?:\bTHB\b|\bBAHT\b|\bBANGKOK\b|\bPHUKET\b|\bCHIANG\s*MAI\b|\bTHAILAND\b|[\u0E00-\u0E7F]|ถนน|กรุงเทพ|บาท)/i.test(sample)) return "THB";
+  if (/[₫]|(?:\bVND\b|\bDONG\b|\bVIETNAM\b|\bVNĐ\b|\bHANOI\b|\bSAIGON\b|\bHO CHI MINH\b|đường|quận|phường|[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ])/i.test(sample)) return "VND";
+  if (/\bUSD\b/i.test(sample)) return "USD";
+  return supportedCurrencies.includes(fallback) ? fallback : "";
 }
 
 function detectRestaurantName(text) {
@@ -1253,16 +1269,59 @@ function buildManualReceipt() {
   splitMode = "items";
   manualAttachmentDataUrl = "";
   $("#manualAttachment").value = "";
+  showConfirmItems();
+}
+
+function showConfirmItems() {
+  itemizeStage = "confirm";
+  splitMode = "items";
   setSplitMode("items");
   renderAssignment();
   showScreen("itemize");
+}
+
+function showSplitChoice() {
+  if (!parsedReceipt) return;
+  collectConfirmEdits();
+  syncReceiptFromReview();
+  renderSplitChoice();
+  showScreen("split-choice");
+}
+
+function beginSplitMethod(mode) {
+  itemizeStage = "assign";
+  setSplitMode(mode);
+  renderAssignment();
+  showScreen("itemize");
+}
+
+function collectConfirmEdits() {
+  if (!parsedReceipt) return;
+  parsedReceipt.items.forEach((item) => {
+    if ($(`[data-edit-item-name="${item.id}"]`)) updateParsedItem(item.id, { rerender: false });
+  });
+}
+
+function syncReceiptFromReview() {
+  updateParsedDetails();
+  updateParsedCurrency();
+  updateParsedAdjustments();
+}
+
+function renderSplitChoice() {
+  if (!parsedReceipt) return;
+  $("#splitChoiceName").textContent = parsedReceipt.name || "Receipt";
+  $("#splitChoiceDate").textContent = formatLongDate(parsedReceipt.date) || "Today";
+  $("#splitChoiceTotal").textContent = formatNative(receiptTotal(parsedReceipt), parsedReceipt.currency);
 }
 
 function renderAssignment() {
   if (!parsedReceipt) return;
   syncReviewFields();
   renderReviewSummary();
-  $("#itemizeTitle").textContent = parsedReceipt.name || "Receipt";
+  $("#itemizeTitle").textContent = itemizeStage === "confirm" ? "Confirm items" : parsedReceipt.name || "Receipt";
+  $("#itemizeKicker").textContent = itemizeStage === "confirm" ? "Smart scan by AI" : "Receipt total";
+  $("#screen-itemize .back-button").dataset.screen = itemizeStage === "assign" ? "split-choice" : "home";
   renderReceiptTotals();
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
@@ -1276,6 +1335,12 @@ function renderAssignment() {
   }
   const payer = findPerson(parsedReceipt.paidBy || $("#reviewPaidBy").value);
   $("#parsedPaidBy").textContent = payer ? `${payer.name} paid for this tab` : "";
+  $("#currencyReviewPrompt").classList.toggle("hidden", !parsedReceipt.currencyNeedsReview || itemizeStage !== "confirm");
+  $("#currencyReviewSelect").value = parsedReceipt.currency || "THB";
+  $(".receipt-details").classList.toggle("hidden", itemizeStage !== "confirm");
+  $(".split-methods").classList.toggle("hidden", itemizeStage === "confirm");
+  $("#claimRemaining").classList.toggle("hidden", itemizeStage !== "assign" || splitMode !== "items");
+  $("#addParsedItem").classList.toggle("hidden", itemizeStage !== "confirm");
   renderEvenPeopleList();
   renderAmountSplitList();
 
@@ -1300,8 +1365,14 @@ function renderAssignment() {
   $$("[data-edit-item-amount]").forEach((input) => {
     input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
   });
+  $$("[data-edit-item-unit]").forEach((input) => {
+    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemUnit));
+  });
   $$("[data-edit-item-qty]").forEach((input) => {
     input.addEventListener("change", () => updateParsedItem(input.dataset.editItemQty));
+  });
+  $$("[data-edit-qty-step]").forEach((button) => {
+    button.addEventListener("click", () => stepConfirmQuantity(button.dataset.editQtyStep, Number(button.dataset.delta || 0)));
   });
   $$("[data-claim-adjust]").forEach((button) => {
     button.addEventListener("click", () => adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0)));
@@ -1311,6 +1382,40 @@ function renderAssignment() {
 }
 
 function itemRowMarkup(item, covered) {
+  if (itemizeStage === "confirm") return confirmItemRowMarkup(item);
+  return selectItemRowMarkup(item, covered);
+}
+
+function confirmItemRowMarkup(item) {
+  const quantity = itemQuantity(item);
+  const currency = parsedReceipt.currency;
+  const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
+  return `
+            <article class="confirm-item-card">
+              <div class="confirm-item-head">
+                <input class="claim-name-input" data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" aria-label="Item name" />
+                <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
+                  <i data-lucide="trash-2"></i>
+                </button>
+              </div>
+              <div class="confirm-item-body">
+                <label class="currency-input compact-price">
+                  <span>Unit price</span>
+                  <em>${currencySymbol(currency)}</em>
+                  <input data-edit-item-unit="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(unitPrice)}" />
+                </label>
+                <div class="confirm-qty">
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
+                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" aria-label="Quantity" />
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="1" aria-label="Increase ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
+                </div>
+                <strong class="claim-total">${formatNative(Number(item.amount || unitPrice * quantity), currency)}</strong>
+              </div>
+            </article>
+          `;
+}
+
+function selectItemRowMarkup(item, covered) {
   const quantity = itemQuantity(item);
   const currency = parsedReceipt.currency;
   const activePerson = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id || "";
@@ -1319,83 +1424,26 @@ function itemRowMarkup(item, covered) {
   const activeClaim = itemClaimQuantity(item, activePerson);
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
   const activeShare = itemShareForPerson(item, activePerson);
-  const otherPeople = state.people.filter((person) => person.id !== activePerson);
-  const personChip = (person) => `
-                      <label class="chip">
-                        <input type="checkbox" data-item="${item.id}" data-person="${person.id}" ${item.assignedTo?.includes(person.id) ? "checked" : ""}>
-                        <span>${escapeHtml(person.name)}</span>
-                        ${
-                          quantity > 1
-                            ? `<div class="claim-stepper" aria-label="${escapeHtml(person.name)} quantity">
-                                <button type="button" data-claim-adjust="${item.id}" data-person="${person.id}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)} for ${escapeHtml(person.name)}"><i data-lucide="minus"></i></button>
-                                <strong data-claim-count="${item.id}" data-person="${person.id}">${itemClaimQuantity(item, person.id) || 0}</strong>
-                                <button type="button" data-claim-adjust="${item.id}" data-person="${person.id}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)} for ${escapeHtml(person.name)}"><i data-lucide="plus"></i></button>
-                              </div>`
-                            : ""
-                        }
-                      </label>
-                    `;
   return `
-            <article class="item-row claim-card ${activeSelected ? "selected" : ""}">
-              ${covered ? `<div class="covered-label">Already covered - you can still adjust this item</div>` : ""}
-              <div class="claim-card-grid">
-                ${
-                  activePerson
-                    ? `<label class="claim-check" aria-label="Select ${escapeHtml(item.name)} for ${escapeHtml(activeName)}">
-                        <input type="checkbox" data-item="${item.id}" data-person="${activePerson}" ${activeSelected ? "checked" : ""}>
-                        <span></span>
-                      </label>`
-                    : ""
-                }
-                <div class="claim-item-copy">
-                  <input class="claim-name-input" data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" aria-label="Item name" />
-                  <div class="claim-meta">
-                    <span>${formatNative(unitPrice, currency)}${quantity > 1 ? " each" : ""}</span>
-                    ${quantity > 1 ? `<span>Qty: ${quantity}</span>` : ""}
-                  </div>
-                  ${activeSelected ? `<div class="claim-covering">Covering: ${formatNative(activeShare, currency)}</div>` : ""}
-                </div>
-                <div class="claim-side">
-                  <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
-                    <i data-lucide="trash-2"></i>
-                  </button>
-                  <strong class="claim-total">${formatNative(activeSelected ? activeShare : Number(item.amount || 0), currency)}</strong>
-                </div>
+            <article class="select-item-row ${activeSelected ? "selected" : ""}">
+              ${covered ? `<div class="covered-label">Already covered - tap to edit</div>` : ""}
+              <label class="claim-check" aria-label="Select ${escapeHtml(item.name)} for ${escapeHtml(activeName)}">
+                <input type="checkbox" data-item="${item.id}" data-person="${activePerson}" ${activeSelected ? "checked" : ""}>
+                <span></span>
+              </label>
+              <div class="select-item-copy">
+                <strong>${escapeHtml(item.name)}</strong>
+                <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
+                ${activeSelected ? `<em>Covering: ${formatNative(activeShare, currency)}</em>` : ""}
               </div>
               ${
-                quantity > 1 && activePerson
-                  ? `<div class="claim-primary-stepper">
-                      <span>Your quantity</span>
-                      <div class="claim-stepper large" aria-label="${escapeHtml(activeName)} quantity">
-                        <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)} for ${escapeHtml(activeName)}"><i data-lucide="minus"></i></button>
-                        <strong data-claim-count="${item.id}" data-person="${activePerson}">${activeClaim || 0}</strong>
-                        <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)} for ${escapeHtml(activeName)}"><i data-lucide="plus"></i></button>
-                      </div>
+                quantity > 1 && activeSelected
+                  ? `<div class="claim-stepper large" aria-label="${escapeHtml(activeName)} quantity">
+                      <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
+                      <strong>${activeClaim || 0}</strong>
+                      <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
                     </div>`
-                  : ""
-              }
-              <div class="parsed-item-fields claim-edit-fields">
-                <label>
-                  <span>Qty</span>
-                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" />
-                </label>
-                <label class="currency-input">
-                  <span>Total</span>
-                  <em>${currencySymbol(currency)}</em>
-                  <input data-edit-item-amount="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(item.amount)}" />
-                </label>
-              </div>
-              ${
-                otherPeople.length
-                  ? `<details class="assign-others">
-                      <summary>Assign others</summary>
-                      <div class="chip-grid">
-                        ${otherPeople.map(personChip).join("")}
-                      </div>
-                    </details>`
-                  : state.people.length
-                    ? `<div class="chip-grid only-hidden">${state.people.map(personChip).join("")}</div>`
-                    : ""
+                  : `<strong class="claim-total">${formatNative(activeSelected ? activeShare : Number(item.amount || 0), currency)}</strong>`
               }
             </article>
           `;
@@ -1421,7 +1469,8 @@ function renderReceiptTotals() {
   const evenCount = splitMode === "even" ? Math.max(1, splitEvenPeople.length || splitCount) : splitCount;
   $("#parsedTotal").textContent = formatNative(total, parsedReceipt.currency);
   $("#splitEachLabel").textContent = `${formatNative(total / evenCount, parsedReceipt.currency)} each`;
-  $("#saveReceiptLabel").textContent = splitMode === "even" ? `Review ${formatNative(total, parsedReceipt.currency)}` : "Review selections";
+  if (itemizeStage === "confirm") $("#saveReceiptLabel").textContent = "Looks good - continue";
+  else $("#saveReceiptLabel").textContent = splitMode === "even" ? `Review ${formatNative(total, parsedReceipt.currency)}` : "Review selections";
 }
 
 function renderFeesList() {
@@ -1471,6 +1520,7 @@ function updateParsedDetails() {
 function updateParsedCurrency() {
   if (!parsedReceipt) return;
   parsedReceipt.currency = $("#reviewCurrency").value;
+  parsedReceipt.currencyNeedsReview = false;
   renderAssignment();
 }
 
@@ -1510,19 +1560,29 @@ function adjustmentLabel(type) {
   return "Fees";
 }
 
-function updateParsedItem(itemId) {
+function updateParsedItem(itemId, options = {}) {
   if (!parsedReceipt) return;
   const item = parsedReceipt.items.find((entry) => entry.id === itemId);
   if (!item) return;
   const name = $(`[data-edit-item-name="${itemId}"]`)?.value.trim();
-  const amount = Number($(`[data-edit-item-amount="${itemId}"]`)?.value || 0);
   const quantity = Math.max(1, Number($(`[data-edit-item-qty="${itemId}"]`)?.value || item.quantity || 1));
+  const unitInput = $(`[data-edit-item-unit="${itemId}"]`);
+  const amountInput = $(`[data-edit-item-amount="${itemId}"]`);
+  const unitPrice = unitInput ? Number(unitInput.value || 0) : 0;
+  const amount = unitInput ? unitPrice * quantity : Number(amountInput?.value || 0);
   item.name = name || "Item";
   item.amount = Math.max(0, amount);
   item.quantity = quantity;
   item.unitPrice = quantity ? roundCents(item.amount / quantity) : item.amount;
   item.claims = clampClaims(item);
-  renderAssignment();
+  if (options.rerender !== false) renderAssignment();
+}
+
+function stepConfirmQuantity(itemId, delta) {
+  const input = $(`[data-edit-item-qty="${itemId}"]`);
+  if (!input) return;
+  input.value = String(Math.max(1, Number(input.value || 1) + delta));
+  updateParsedItem(itemId);
 }
 
 function addParsedItem() {
@@ -1623,19 +1683,24 @@ function updateAmountRemaining() {
 
 function collectAssignmentChoices() {
   if (!parsedReceipt) return;
+  const activePerson = activePersonId || $("#reviewPaidBy").value;
   parsedReceipt.items.forEach((item) => {
     const quantity = itemQuantity(item);
-    const checkedPeople = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
+    const checkedPeople = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person).filter(Boolean);
+    const preservedPeople = (item.assignedTo || []).filter((personId) => personId && personId !== activePerson && !$(`input[data-item="${item.id}"][data-person="${personId}"]`));
     if (quantity > 1) {
-      const claims = {};
+      const claims = { ...(item.claims || {}) };
+      Object.keys(claims).forEach((personId) => {
+        if (personId === activePerson && !checkedPeople.includes(personId)) delete claims[personId];
+      });
       checkedPeople.forEach((personId) => {
         const claim = Math.max(0, Math.floor(Number(item.claims?.[personId] || 0)));
         if (claim > 0) claims[personId] = claim;
       });
       item.claims = clampClaims({ ...item, claims });
-      item.assignedTo = Object.keys(claims);
+      item.assignedTo = Object.keys(item.claims);
     } else {
-      item.assignedTo = checkedPeople;
+      item.assignedTo = Array.from(new Set([...preservedPeople, ...checkedPeople]));
       item.claims = {};
     }
   });
@@ -1765,6 +1830,13 @@ function distributeQuantity(quantity, people) {
 
 function updateSelectionBar() {
   if (!parsedReceipt) return;
+  if (itemizeStage === "confirm") {
+    $("#selectionTotal").classList.add("hidden");
+    $("#saveLaterReceipt").classList.add("hidden");
+    $("#reviewSelections").classList.remove("hidden");
+    $("#itemizeActions").classList.remove("inline-actions");
+    return;
+  }
   collectAssignmentChoices();
   const hasSelection = splitMode === "even" || splitMode === "amounts" || selectedItemsForActivePerson().length > 0;
   $("#selectionTotal").classList.toggle("hidden", !hasSelection);
@@ -1775,6 +1847,14 @@ function updateSelectionBar() {
 
 function reviewSelections() {
   if (!parsedReceipt) return;
+  if (itemizeStage === "confirm") {
+    if (parsedReceipt.currencyNeedsReview) {
+      safeAlert("Confirm the receipt currency before continuing.");
+      return;
+    }
+    showSplitChoice();
+    return;
+  }
   collectAssignmentChoices();
   const selector = findPerson(activePersonId || $("#reviewPaidBy").value)?.name || "Your";
   $("#selectionReviewTitle").textContent = `${possessive(selector)} selected items`;
@@ -2419,6 +2499,7 @@ function openReceiptForClaiming(receiptId) {
   parsedReceipt.paidBy = receipt.paidBy;
   initiallyCoveredItemIds = new Set((parsedReceipt.items || []).filter((item) => !itemHasUnassignedQuantity(item)).map((item) => item.id));
   splitMode = "items";
+  itemizeStage = "assign";
   setSplitMode("items");
   renderAssignment();
   showScreen("itemize");
