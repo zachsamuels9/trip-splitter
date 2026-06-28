@@ -2052,8 +2052,10 @@ async function loadAdminTrips() {
   const password = $("#adminPassword").value;
   try {
     const response = await api(`/api/admin/trips?password=${encodeURIComponent(password)}`);
+    const accounts = await api(`/api/admin/accounts?password=${encodeURIComponent(password)}`);
     $("#adminLogin").classList.add("hidden");
     $("#adminPanel").classList.remove("hidden");
+    $("#adminAccountsPanel").classList.remove("hidden");
     $("#adminTrips").innerHTML = response.trips.length
       ? response.trips
           .map(
@@ -2072,6 +2074,25 @@ async function loadAdminTrips() {
     $$("[data-admin-delete]").forEach((button) => {
       button.addEventListener("click", () => deleteAdminTrip(button.dataset.adminDelete));
     });
+    $("#adminAccountCount").textContent = String(accounts.accounts.length);
+    $("#adminAccounts").innerHTML = accounts.accounts.length
+      ? accounts.accounts
+          .map(
+            (account) => `
+              <article class="group-row">
+                <div>
+                  <div class="row-name">${escapeHtml(account.name || account.email || "Account")}</div>
+                  <div class="subtext">${escapeHtml(`${account.email || "No email"} · ${account.trips.length} trip${account.trips.length === 1 ? "" : "s"} · ${account.trips.map((trip) => trip.name).join(", ")}`)}</div>
+                </div>
+                <button class="small-primary danger-action" data-admin-account="${escapeHtml(account.id)}" data-admin-account-email="${escapeHtml(account.email || "")}" data-admin-participants="${escapeHtml(account.participantIds.join(","))}"><i data-lucide="user-x"></i><span>Delete</span></button>
+              </article>
+            `
+          )
+          .join("")
+      : `<div class="empty">No accounts found.</div>`;
+    $$("[data-admin-account]").forEach((button) => {
+      button.addEventListener("click", () => deleteAdminAccount(button));
+    });
     makeIcons();
   } catch {
     safeAlert("Wrong password or admin API unavailable.");
@@ -2081,6 +2102,17 @@ async function loadAdminTrips() {
 async function deleteAdminTrip(tripId) {
   if (!safeConfirm("Delete this trip and all of its data?")) return;
   await api(`/api/admin/trips/${tripId}`, { method: "DELETE", body: { password: $("#adminPassword").value } });
+  await loadAdminTrips();
+}
+
+async function deleteAdminAccount(button) {
+  const email = button.dataset.adminAccountEmail || "";
+  const participantIds = (button.dataset.adminParticipants || "").split(",").filter(Boolean);
+  if (!safeConfirm(`Delete ${email || "this account"} from all listed trips?`)) return;
+  await api("/api/admin/accounts", {
+    method: "DELETE",
+    body: { password: $("#adminPassword").value, email, participantIds },
+  });
   await loadAdminTrips();
 }
 

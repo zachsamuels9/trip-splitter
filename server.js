@@ -5,8 +5,10 @@ const {
   addPerson,
   closeGroup,
   createGroup,
+  deleteAccount,
   deleteTrip,
   getRequiredGroup,
+  listAccounts,
   listTrips,
   publicGroup,
   reopenGroup,
@@ -77,6 +79,26 @@ async function handleApi(req, res, url) {
     }
     sendJson(res, 200, await listTrips());
     return;
+  }
+
+  if (url.pathname === "/api/admin/accounts") {
+    if (req.method === "GET") {
+      if (url.searchParams.get("password") !== "1234") {
+        sendJson(res, 401, { error: "Unauthorized" });
+        return;
+      }
+      sendJson(res, 200, await listAccounts());
+      return;
+    }
+    if (req.method === "DELETE") {
+      const body = await readBody(req);
+      if (body.password !== "1234") {
+        sendJson(res, 401, { error: "Unauthorized" });
+        return;
+      }
+      sendJson(res, 200, await deleteAccount(body));
+      return;
+    }
   }
 
   if (req.method === "POST" && url.pathname === "/api/accounts") {

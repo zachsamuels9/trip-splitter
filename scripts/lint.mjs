@@ -8,6 +8,7 @@ const jsFiles = [
   "api/groups/[...path].js",
   "api/accounts.js",
   "api/accounts/[id].js",
+  "api/admin/accounts.js",
   "api/ocr.js",
   "lib/group-store.js",
   "lib/receipt-ocr-service.js",
