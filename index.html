@@ -223,6 +223,10 @@
           </label>
           <button class="primary full" id="settingsCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
           <button class="primary full secondary-action" id="settingsTextInvite"><i data-lucide="message-square-share"></i><span>Text invite link</span></button>
+          <div class="qr-card">
+            <img id="inviteQr" alt="Trip invite QR code" />
+            <span>Scan to join</span>
+          </div>
           <p class="subtext centered" id="inviteCopyStatus"></p>
           <button class="primary full secondary-action" id="inviteHome"><i data-lucide="home"></i><span>Go to trip</span></button>
         </section>
@@ -373,11 +377,14 @@
             <strong>Confirm currency</strong>
             <p class="subtext">This receipt may be from Thailand or Vietnam. Choose the currency before continuing.</p>
           </div>
-          <select id="currencyReviewSelect">
-            <option value="THB">THB</option>
-            <option value="VND">VND</option>
-            <option value="USD">USD</option>
-          </select>
+          <div class="currency-review-actions">
+            <select id="currencyReviewSelect">
+              <option value="THB">THB</option>
+              <option value="VND">VND</option>
+              <option value="USD">USD</option>
+            </select>
+            <button class="small-primary" id="confirmCurrency"><span>Confirm</span></button>
+          </div>
         </section>
 
         <details class="panel receipt-details">
@@ -448,11 +455,7 @@
           </button>
           <button class="method" data-split-mode="even">
             <i data-lucide="users-round"></i>
-            <span>Split evenly</span>
-          </button>
-          <button class="method" data-split-mode="amounts">
-            <i data-lucide="badge-dollar-sign"></i>
-            <span>By amount</span>
+            <span>Split manually</span>
           </button>
         </section>
 
@@ -473,9 +476,10 @@
 
         <section class="panel hidden" id="evenSplitPanel">
           <div class="section-title">
-            <h2>Split total cost</h2>
+            <h2>Split manually</h2>
             <span id="evenPeopleLabel">0 people</span>
           </div>
+          <h3 class="mini-heading">Split evenly</h3>
           <div class="stepper">
             <button id="decreaseSplit" aria-label="Decrease people"><i data-lucide="minus"></i></button>
             <strong id="splitCount">2</strong>
@@ -483,10 +487,7 @@
           </div>
           <div id="evenPeopleList" class="chip-grid"></div>
           <p class="subtext centered" id="splitEachLabel">$0.00 each</p>
-        </section>
-
-        <section class="panel hidden" id="amountSplitPanel">
-          <div class="section-title">
+          <div class="section-title amount-title">
             <h2>Specific amounts</h2>
             <span id="amountRemaining">$0.00 left</span>
           </div>
@@ -528,7 +529,7 @@
           </button>
           <button class="choice-card cyan" id="chooseSplitEvenly">
             <i data-lucide="users"></i>
-            <span><strong>Split evenly</strong><small>Divide the total evenly for everyone</small></span>
+            <span><strong>Split manually</strong><small>Split evenly or enter exact amounts</small></span>
             <i data-lucide="chevron-right"></i>
           </button>
           <div class="or-divider"><span>OR</span></div>
@@ -658,7 +659,7 @@
           <h1>Settle up</h1>
         </header>
         <section class="receipt-card">
-          <p>Your balance</p>
+          <p id="settlementBalanceLabel">Your settlement balance</p>
           <strong id="mySettlementBalance">$0.00</strong>
           <span id="mySettlementHint">Add receipts to calculate settlements.</span>
         </section>

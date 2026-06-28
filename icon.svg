@@ -1,8 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="96" fill="#126e5a"/>
-  <path fill="#fff" d="M148 104h216c18 0 32 14 32 32v256c0 18-14 32-32 32H148c-18 0-32-14-32-32V136c0-18 14-32 32-32Z"/>
-  <path fill="#e7f2ec" d="M154 142h204v224H154z"/>
-  <path fill="#126e5a" d="M184 184h144v24H184zm0 58h108v24H184zm0 58h144v24H184z"/>
-  <circle cx="350" cy="342" r="66" fill="#2459a6"/>
-  <path fill="#fff" d="M342 306h18v16c13 3 22 11 27 23l-22 9c-4-8-10-12-20-12-9 0-14 3-14 9 0 7 8 9 24 13 22 6 36 15 36 36 0 17-12 30-31 34v18h-18v-18c-18-4-31-15-36-33l24-7c3 12 11 18 25 18 10 0 16-4 16-11 0-8-8-11-25-15-21-5-35-14-35-34 0-16 11-28 31-31v-15Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Trip Split">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="48" x2="448" y2="464" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171225"/>
+      <stop offset="1" stop-color="#081421"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="132" y1="96" x2="396" y2="420" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8138f4"/>
+      <stop offset="1" stop-color="#2fd0e9"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M140 88h232c22 0 40 18 40 40v280l-38-22-38 22-38-22-38 22-38-22-38 22-38-22-38 22V128c0-22 18-40 40-40Z" fill="#f7f5ff"/>
+  <path d="M164 120h184c18 0 32 14 32 32v190l-22-13-31 18-31-18-31 18-31-18-31 18-31-18-22 13V152c0-18 14-32 32-32Z" fill="#121827"/>
+  <path d="M188 166h136v24H188zm0 54h96v24h-96zm0 54h130v24H188z" fill="#9ca8bb"/>
+  <circle cx="354" cy="334" r="70" fill="url(#accent)"/>
+  <path d="M326 318h56m0 0-20-20m20 20-20 20M382 352h-56m0 0 20-20m-20 20 20 20" fill="none" stroke="#fff" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

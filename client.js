@@ -276,6 +276,7 @@ function bindEvents() {
   $("#signOut").addEventListener("click", signOutAccount);
   $("#saveAccount").addEventListener("click", saveAccountSettings);
   $("#loggedInBox").addEventListener("click", () => showScreen("account-settings"));
+  $("#personalTotal").addEventListener("click", () => showScreen("expenses"));
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
   $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
@@ -321,12 +322,9 @@ function bindEvents() {
   $("#choosePickItems").addEventListener("click", () => beginSplitMethod("items"));
   $("#chooseSplitEvenly").addEventListener("click", () => beginSplitMethod("even"));
   $("#chooseAssignLater").addEventListener("click", () => saveReceipt(true));
+  $("#confirmCurrency").addEventListener("click", confirmReviewCurrency);
   $("#currencyReviewSelect").addEventListener("change", () => {
-    if (!parsedReceipt) return;
-    parsedReceipt.currency = $("#currencyReviewSelect").value;
-    parsedReceipt.currencyNeedsReview = false;
-    syncReviewFields();
-    renderAssignment();
+    if (parsedReceipt) parsedReceipt.currency = $("#currencyReviewSelect").value;
   });
   $("#confirmationHome").addEventListener("click", () => showScreen("home"));
   $("#confirmationAddAnother").addEventListener("click", () => {
@@ -366,10 +364,16 @@ function showScreen(name) {
 }
 
 function renderInviteScreen() {
-  $("#settingsInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
+  const link = activeGroupId ? inviteUrl() : `${location.origin}/start`;
+  $("#settingsInviteLink").value = link;
+  $("#inviteQr").src = qrCodeUrl(link);
   $("#screen-invite .back-button").dataset.screen = inviteReturnScreen;
   $("#inviteHome").classList.toggle("hidden", inviteReturnScreen === "settings");
   $("#inviteCopyStatus").textContent = "";
+}
+
+function qrCodeUrl(value) {
+  return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(value)}`;
 }
 
 function updateBackTargets(name) {
@@ -1326,6 +1330,8 @@ function renderAssignment() {
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
   $("#splitCount").textContent = splitCount;
+  $("#increaseSplit").disabled = splitCount >= Math.max(1, state.people.length || 1);
+  $("#decreaseSplit").disabled = splitCount <= 1;
   $("#saveLaterReceipt").classList.toggle("hidden", Boolean(editingReceiptId) || splitMode === "even");
   $("#itemizeReceiptPreview").classList.toggle("hidden", !parsedReceipt.imageDataUrl);
   if (parsedReceipt.imageDataUrl) {
@@ -1338,8 +1344,9 @@ function renderAssignment() {
   $("#currencyReviewPrompt").classList.toggle("hidden", !parsedReceipt.currencyNeedsReview || itemizeStage !== "confirm");
   $("#currencyReviewSelect").value = parsedReceipt.currency || "THB";
   $(".receipt-details").classList.toggle("hidden", itemizeStage !== "confirm");
-  $(".split-methods").classList.toggle("hidden", itemizeStage === "confirm");
+  $(".split-methods").classList.add("hidden");
   $("#claimRemaining").classList.toggle("hidden", itemizeStage !== "assign" || splitMode !== "items");
+  updateClaimRemainingButton();
   $("#addParsedItem").classList.toggle("hidden", itemizeStage !== "confirm");
   renderEvenPeopleList();
   renderAmountSplitList();
@@ -1524,6 +1531,14 @@ function updateParsedCurrency() {
   renderAssignment();
 }
 
+function confirmReviewCurrency() {
+  if (!parsedReceipt) return;
+  parsedReceipt.currency = $("#currencyReviewSelect").value;
+  parsedReceipt.currencyNeedsReview = false;
+  $("#reviewCurrency").value = parsedReceipt.currency;
+  renderAssignment();
+}
+
 function updateParsedAdjustments() {
   if (!parsedReceipt) return;
   setAdjustmentAmount("tip", Number($("#reviewTip").value || 0));
@@ -1610,7 +1625,6 @@ function setSplitMode(mode) {
   $$(".method").forEach((button) => button.classList.toggle("active", button.dataset.splitMode === mode));
   $("#pickItemsPanel").classList.toggle("hidden", mode !== "items");
   $("#evenSplitPanel").classList.toggle("hidden", mode !== "even");
-  $("#amountSplitPanel").classList.toggle("hidden", mode !== "amounts");
   $("#itemizeActions").classList.toggle("inline-actions", mode !== "items");
   renderAssignment();
 }
@@ -1742,6 +1756,11 @@ function claimAllRemaining() {
   if (!parsedReceipt) return;
   const personId = activePersonId || $("#reviewPaidBy").value;
   if (!personId) return;
+  if (hasClaimedAllRemaining(personId)) {
+    parsedReceipt.items.forEach((item) => removePersonFromItem(item, personId));
+    renderAssignment();
+    return;
+  }
   parsedReceipt.items.forEach((item) => {
     if (!itemHasUnassignedQuantity(item)) return;
     const quantity = itemQuantity(item);
@@ -1759,6 +1778,24 @@ function claimAllRemaining() {
   renderAssignment();
 }
 
+function hasClaimedAllRemaining(personId) {
+  return parsedReceipt?.items?.some((item) => (item.assignedTo || []).includes(personId)) && parsedReceipt.items.every((item) => !itemHasUnassignedQuantity(item) || (item.assignedTo || []).includes(personId));
+}
+
+function removePersonFromItem(item, personId) {
+  item.assignedTo = (item.assignedTo || []).filter((id) => id !== personId);
+  if (item.claims) delete item.claims[personId];
+}
+
+function updateClaimRemainingButton() {
+  const button = $("#claimRemaining");
+  if (!button || !parsedReceipt) return;
+  const personId = activePersonId || $("#reviewPaidBy").value;
+  const selectedAll = personId && hasClaimedAllRemaining(personId);
+  button.querySelector("span").textContent = selectedAll ? "Deselect all" : "Select all remaining";
+  button.querySelector("i")?.setAttribute("data-lucide", selectedAll ? "list-x" : "list-plus");
+}
+
 function selectedItemsForActivePerson() {
   if (!parsedReceipt) return [];
   const personId = activePersonId || $("#reviewPaidBy").value;
@@ -1767,7 +1804,11 @@ function selectedItemsForActivePerson() {
 
 function selectedNativeTotal() {
   if (!parsedReceipt) return 0;
-  if (splitMode === "even") return receiptTotal(parsedReceipt) / Math.max(1, splitEvenPeople.length || splitCount);
+  if (splitMode === "even") {
+    const manualAmount = Number($(`[data-amount-person="${activePersonId || $("#reviewPaidBy").value}"]`)?.value || 0);
+    if (assignedAmountTotal() > 0) return manualAmount;
+    return receiptTotal(parsedReceipt) / Math.max(1, splitEvenPeople.length || splitCount);
+  }
   if (splitMode === "amounts") return Number($(`[data-amount-person="${activePersonId || $("#reviewPaidBy").value}"]`)?.value || 0);
   return sum(selectedItemsForActivePerson().map(itemShareForActivePerson)) + selectedAdjustmentShare();
 }
@@ -1859,6 +1900,19 @@ function reviewSelections() {
   const selector = findPerson(activePersonId || $("#reviewPaidBy").value)?.name || "Your";
   $("#selectionReviewTitle").textContent = `${possessive(selector)} selected items`;
   if (splitMode === "even") {
+    const amountEntries = $$("[data-amount-person]").map((input) => ({ personId: input.dataset.amountPerson, amount: Number(input.value || 0) })).filter((entry) => entry.amount > 0);
+    if (amountEntries.length) {
+      parsedReceipt.amountSplits = Object.fromEntries(amountEntries.map((entry) => [entry.personId, entry.amount]));
+      const nativeTotal = parsedReceipt.amountSplits[activePersonId] || 0;
+      $("#selectionReviewTotal").textContent = formatNative(nativeTotal, parsedReceipt.currency);
+      $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · specific amounts`;
+      $("#selectionReviewCount").textContent = `${amountEntries.length} people`;
+      $("#selectionReviewList").innerHTML = amountEntries
+        .map((entry) => `<div class="fee-row"><span>${escapeHtml(findPerson(entry.personId)?.name || "Guest")}</span><strong>${formatNative(entry.amount, parsedReceipt.currency)}</strong></div>`)
+        .join("") + convertedLine(nativeTotal, parsedReceipt.currency);
+      showScreen("selection-review");
+      return;
+    }
     const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
     const nativeTotal = receiptTotal(parsedReceipt) / Math.max(1, people.length);
     $("#selectionReviewTotal").textContent = formatNative(nativeTotal, parsedReceipt.currency);
@@ -1923,13 +1977,30 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
     });
     parsedReceipt.splitEvenCount = null;
   } else if (splitMode === "even") {
-    const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
-    parsedReceipt.items.forEach((item) => {
-      item.assignedTo = people;
-      const quantity = itemQuantity(item);
-      item.claims = quantity > 1 ? distributeQuantity(quantity, people) : {};
-    });
-    parsedReceipt.splitEvenCount = people.length;
+    const amountEntries = $$("[data-amount-person]").map((input) => [input.dataset.amountPerson, Number(input.value || 0)]).filter(([, amount]) => amount > 0);
+    if (amountEntries.length) {
+      parsedReceipt.amountSplits = Object.fromEntries(amountEntries);
+      parsedReceipt.items = amountEntries.map(([personId, amount]) => ({
+        id: createId(),
+        name: `Share - ${findPerson(personId)?.name || "Guest"}`,
+        amount,
+        quantity: 1,
+        unitPrice: amount,
+        assignedTo: [personId],
+        claims: {},
+      }));
+      parsedReceipt.fees = [];
+      parsedReceipt.discount = 0;
+      parsedReceipt.splitEvenCount = null;
+    } else {
+      const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
+      parsedReceipt.items.forEach((item) => {
+        item.assignedTo = people;
+        const quantity = itemQuantity(item);
+        item.claims = quantity > 1 ? distributeQuantity(quantity, people) : {};
+      });
+      parsedReceipt.splitEvenCount = people.length;
+    }
   } else if (splitMode === "amounts") {
     parsedReceipt.amountSplits = Object.fromEntries($$("[data-amount-person]").map((input) => [input.dataset.amountPerson, Number(input.value || 0)]));
     parsedReceipt.items = Object.entries(parsedReceipt.amountSplits)
@@ -1953,13 +2024,14 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
     }
   }
 
-  const savedSplitMode = assignLater ? "items" : splitMode;
+  const usingSpecificAmounts = !assignLater && parsedReceipt.amountSplits && Object.values(parsedReceipt.amountSplits).some((amount) => Number(amount) > 0);
+  const savedSplitMode = assignLater ? "items" : usingSpecificAmounts ? "amounts" : splitMode;
   const shares = assignLater
     ? withUsd(emptyPersonMap(), parsedReceipt.currency)
-    : splitMode === "even"
-      ? calculateEvenShares(parsedReceipt, splitEvenPeople.length || splitCount)
-      : splitMode === "amounts"
-        ? calculateAmountShares(parsedReceipt)
+    : usingSpecificAmounts
+      ? calculateAmountShares(parsedReceipt)
+      : splitMode === "even"
+        ? calculateEvenShares(parsedReceipt, splitEvenPeople.length || splitCount)
         : calculateItemShares(parsedReceipt);
   const receipt = {
     id: editingReceiptId || createId(),
@@ -2112,6 +2184,7 @@ function renderGroupUi() {
   const closed = isTripClosed();
   $(".action-panel")?.classList.toggle("hidden", closed);
   $(".quick-nav")?.classList.toggle("trip-closed", closed);
+  $('.quick-nav button[data-screen="expenses"]')?.classList.toggle("hidden", closed);
   $("#closedBanner")?.classList.toggle("hidden", !closed);
   $("#settlementList")?.closest(".panel")?.classList.toggle("settle-focus", closed);
   $("#groupSignedOut").classList.toggle("hidden", signedIn);
@@ -2509,7 +2582,9 @@ function renderSettlements() {
   const settlements = calculateSettlements();
   const balance = calculateBalances()[activePersonId] || 0;
   $("#mySettlementBalance").textContent = money.format(Math.abs(balance));
-  $("#mySettlementHint").textContent = balance > 0.005 ? "You are owed" : balance < -0.005 ? "You owe" : "You are settled up";
+  $("#settlementBalanceLabel").textContent = balance > 0.005 ? "Amount you should receive" : balance < -0.005 ? "Amount you owe" : "Your settlement balance";
+  $("#mySettlementHint").textContent =
+    balance > 0.005 ? "The group owes you this net amount." : balance < -0.005 ? "You owe this net amount to the group." : "You are settled up.";
   const settledIds = settledSettlementIds();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
   const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));

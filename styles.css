@@ -22,16 +22,17 @@ html {
   min-height: 100%;
   min-height: 100dvh;
   background: #09070e;
+  overflow-x: hidden;
 }
 
 body {
   margin: 0;
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100%;
   background:
     radial-gradient(circle at 50% 16%, rgba(129, 56, 244, 0.23), transparent 240px),
-    linear-gradient(180deg, #09070e 0%, #09070e 62%, #0d1324 100%);
+    linear-gradient(180deg, #09070e 0%, #09070e 100%);
   color: var(--ink);
+  overflow-x: hidden;
 }
 
 button,
@@ -46,18 +47,21 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .shell {
   width: min(430px, 100%);
-  min-height: 100vh;
-  min-height: 100dvh;
+  min-height: 100svh;
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
 }
 
 .screen {
   display: none;
-  min-height: calc(100dvh - 36px);
-  padding-bottom: 28px;
+  padding-bottom: 18px;
 }
 
 #screen-install {
@@ -203,6 +207,14 @@ h2 {
   font-weight: 950;
 }
 
+#personalTotal {
+  width: fit-content;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgba(47, 208, 233, 0.5);
+  text-underline-offset: 4px;
+}
+
 .receipt-card {
   grid-template-columns: 1fr auto;
   margin-bottom: 20px;
@@ -241,10 +253,11 @@ h2 {
 }
 
 .quick-nav.trip-closed {
-  grid-template-columns: 0.8fr 1.2fr;
+  grid-template-columns: 1fr;
 }
 
 .quick-nav.trip-closed button[data-screen="settle"] {
+  width: 100%;
   min-height: 88px;
   border-color: rgba(47, 208, 233, 0.72);
   background: linear-gradient(135deg, rgba(129, 56, 244, 0.96), rgba(47, 208, 233, 0.9));
@@ -260,6 +273,10 @@ h2 {
   box-shadow: var(--shadow);
   padding: 18px;
   margin-bottom: 16px;
+}
+
+.hidden {
+  display: none !important;
 }
 
 .section-title {
@@ -435,6 +452,22 @@ textarea {
   gap: 12px;
 }
 
+#historyList {
+  margin-top: 16px;
+}
+
+#feesList {
+  margin-top: 18px;
+}
+
+#claimRemaining {
+  margin-bottom: 16px;
+}
+
+#evenPeopleList {
+  margin-top: 16px;
+}
+
 #manualReview {
   margin-top: 18px;
 }
@@ -579,6 +612,20 @@ textarea {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+}
+
+.fee-row > span,
+.row-head > div,
+.history-row,
+.settle-row,
+.pending-row {
+  min-width: 0;
+}
+
+.fee-row > span,
+.row-name,
+.subtext {
+  overflow-wrap: anywhere;
 }
 
 .line-total,
@@ -842,23 +889,35 @@ textarea {
 }
 
 .claim-stepper.large {
-  grid-template-columns: 52px 54px 52px;
+  grid-template-columns: 40px 44px 40px;
   border-color: rgba(129, 56, 244, 0.9);
   border-radius: 16px;
   background: rgba(129, 56, 244, 0.92);
 }
 
 .claim-stepper.large button {
-  min-height: 48px;
+  min-height: 42px;
   background: transparent;
 }
 
 .claim-stepper.large strong {
-  min-height: 48px;
+  min-height: 42px;
   display: grid;
   place-items: center;
   background: rgba(9, 12, 24, 0.94);
-  font-size: 22px;
+  font-size: 20px;
+}
+
+.mini-heading {
+  margin: 4px 0 12px;
+  color: var(--ink);
+  font-size: 16px;
+}
+
+.amount-title {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
 }
 
 .claim-edit-fields {
@@ -891,11 +950,43 @@ textarea {
 
 .currency-review {
   display: grid;
-  grid-template-columns: 1fr 120px;
+  grid-template-columns: 1fr;
   gap: 12px;
   align-items: center;
   border-color: rgba(255, 200, 60, 0.46);
   background: rgba(255, 200, 60, 0.1);
+}
+
+.currency-review-actions {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.currency-review-actions select {
+  min-height: 48px;
+}
+
+.qr-card {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  margin: 16px 0;
+  border: 1px solid rgba(47, 208, 233, 0.24);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 16px;
+  color: var(--muted);
+  font-weight: 950;
+}
+
+.qr-card img {
+  width: 188px;
+  height: 188px;
+  border-radius: 18px;
+  background: #fff;
+  padding: 8px;
 }
 
 .confirm-item-card,
@@ -904,6 +995,8 @@ textarea {
   border-radius: 24px;
   background: rgba(15, 21, 36, 0.96);
   padding: 16px;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .confirm-item-card {
@@ -920,7 +1013,7 @@ textarea {
 
 .confirm-item-body {
   display: grid;
-  grid-template-columns: minmax(104px, 1fr) 132px auto;
+  grid-template-columns: minmax(96px, 1fr) 116px auto;
   gap: 12px;
   align-items: end;
 }
@@ -931,7 +1024,7 @@ textarea {
 
 .confirm-qty {
   display: grid;
-  grid-template-columns: 42px 48px 42px;
+  grid-template-columns: 34px 42px 34px;
   align-items: end;
   overflow: hidden;
   border: 1px solid rgba(129, 56, 244, 0.88);
@@ -940,13 +1033,13 @@ textarea {
 }
 
 .confirm-qty button {
-  min-height: 52px;
+  min-height: 44px;
   color: #fff;
   background: transparent;
 }
 
 .confirm-qty input {
-  min-height: 52px;
+  min-height: 44px;
   border: 0;
   border-radius: 0;
   background: rgba(9, 12, 24, 0.96);
@@ -958,8 +1051,8 @@ textarea {
 
 .select-item-row {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  gap: 14px;
+  grid-template-columns: 38px minmax(0, 1fr) minmax(76px, auto);
+  gap: 12px;
   align-items: center;
   position: relative;
 }
@@ -980,6 +1073,7 @@ textarea {
   font-size: 23px;
   line-height: 1.1;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .select-item-copy span {
@@ -1208,7 +1302,7 @@ textarea {
 
 .claim-stepper {
   display: grid;
-  grid-template-columns: 38px 34px 38px;
+  grid-template-columns: 34px 32px 34px;
   align-items: center;
   overflow: hidden;
   border: 1px solid #2b3655;
@@ -1219,7 +1313,7 @@ textarea {
 .claim-stepper button {
   display: grid;
   place-items: center;
-  min-height: 38px;
+  min-height: 34px;
   background: rgba(255, 255, 255, 0.08);
   color: #fff;
 }
@@ -1241,17 +1335,17 @@ textarea {
 
 .stepper {
   display: grid;
-  grid-template-columns: 80px 1fr 80px;
+  grid-template-columns: 58px 1fr 58px;
   align-items: center;
-  min-height: 94px;
+  min-height: 68px;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 28px;
+  border-radius: 20px;
   background: rgba(18, 24, 39, 0.96);
 }
 
 .stepper button {
-  height: 94px;
+  height: 68px;
   background: rgba(255, 255, 255, 0.03);
   color: var(--ink);
 }
@@ -1260,10 +1354,17 @@ textarea {
   background: var(--purple);
 }
 
+.stepper button:disabled,
+.stepper button:last-child:disabled {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  opacity: 0.55;
+}
+
 .stepper strong {
   text-align: center;
   color: var(--purple);
-  font-size: 32px;
+  font-size: 26px;
 }
 
 .centered {
