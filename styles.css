@@ -483,6 +483,63 @@ textarea {
   padding: 12px;
 }
 
+.scan-progress {
+  grid-template-columns: 42px 1fr;
+  align-items: start;
+  gap: 14px;
+}
+
+.scan-steps {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.scan-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.scan-step span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 2px solid #263656;
+  border-radius: 999px;
+}
+
+.scan-step.done {
+  color: var(--ink);
+}
+
+.scan-step.done span {
+  border-color: var(--green);
+  background: var(--green);
+  color: #04130d;
+}
+
+.scan-step.done span::before {
+  content: "✓";
+  font-size: 15px;
+  font-weight: 1000;
+}
+
+.scan-step.active {
+  color: var(--ink);
+}
+
+.scan-step.active span {
+  border-color: var(--cyan);
+  border-top-color: transparent;
+  animation: spin 0.85s linear infinite;
+}
+
 .delete-item {
   flex: 0 0 52px;
   display: grid;
@@ -657,6 +714,179 @@ textarea {
   font-size: 12px;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.claim-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  background: rgba(15, 21, 36, 0.96);
+  padding: 16px;
+}
+
+.claim-card.selected {
+  border-color: rgba(129, 56, 244, 0.72);
+  box-shadow: inset 4px 0 0 var(--purple);
+}
+
+.claim-card-grid {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.claim-check {
+  display: block;
+  width: 42px;
+  height: 42px;
+  margin: 0;
+}
+
+.claim-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.claim-check span {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 3px solid #25314d;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.claim-check input:checked + span {
+  border-color: var(--purple);
+  background: var(--purple);
+  color: #fff;
+}
+
+.claim-check input:checked + span::before {
+  content: "✓";
+  font-size: 24px;
+  font-weight: 1000;
+}
+
+.claim-item-copy {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.claim-name-input {
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 1000;
+  line-height: 1.15;
+}
+
+.claim-name-input:focus {
+  outline: 2px solid rgba(47, 208, 233, 0.42);
+  outline-offset: 5px;
+}
+
+.claim-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 850;
+}
+
+.claim-covering {
+  color: var(--cyan);
+  font-size: 16px;
+  font-weight: 1000;
+}
+
+.claim-side {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+}
+
+.claim-side .delete-item {
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--muted);
+}
+
+.claim-total {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 1000;
+  white-space: nowrap;
+}
+
+.claim-primary-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.claim-stepper.large {
+  grid-template-columns: 52px 54px 52px;
+  border-color: rgba(129, 56, 244, 0.9);
+  border-radius: 16px;
+  background: rgba(129, 56, 244, 0.92);
+}
+
+.claim-stepper.large button {
+  min-height: 48px;
+  background: transparent;
+}
+
+.claim-stepper.large strong {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  background: rgba(9, 12, 24, 0.94);
+  font-size: 22px;
+}
+
+.claim-edit-fields {
+  margin-top: 14px;
+}
+
+.assign-others {
+  margin-top: 14px;
+}
+
+.assign-others summary {
+  cursor: pointer;
+  list-style: none;
+  color: var(--cyan);
+  font-size: 14px;
+  font-weight: 1000;
+}
+
+.assign-others summary::-webkit-details-marker {
+  display: none;
+}
+
+.assign-others[open] summary {
+  margin-bottom: 10px;
+}
+
+.only-hidden {
+  display: none;
 }
 
 .parsed-item-fields {
@@ -916,7 +1146,7 @@ textarea {
   display: grid;
   grid-template-columns: 44px 1fr;
   gap: 14px;
-  align-items: center;
+  align-items: start;
   border: 1px solid rgba(47, 208, 233, 0.34);
   border-radius: 18px;
   background: rgba(47, 208, 233, 0.08);

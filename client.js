@@ -710,11 +710,15 @@ async function scanImage(event) {
   prepareScanReceipt();
   showScreen("scan");
   updateScanProgress("Reading receipt", "Uploading photo for OCR...", true);
+  setScanStep("captured");
 
   try {
     const originalImageDataUrl = await fileToDataUrl(file);
+    setScanStep("prepared");
     const imageDataUrl = await optimizeImageDataUrl(originalImageDataUrl);
+    setScanStep("compressed");
     const ocr = await readReceiptText(imageDataUrl);
+    setScanStep("extracting", true);
     const text = ocr.text || "";
     const detectedCurrency = inferReceiptCurrency(ocr.receipt, text, $("#receiptCurrency").value);
     $("#receiptCurrency").value = detectedCurrency;
@@ -741,6 +745,7 @@ async function scanImage(event) {
 
 async function readReceiptText(imageDataUrl) {
   updateScanProgress("Reading receipt", "Using server receipt OCR...", true);
+  setScanStep("uploaded");
   return readWithRemoteOcr(imageDataUrl);
 }
 
@@ -753,11 +758,25 @@ function updateScanProgress(title, text, loading) {
   if (scanStatus) scanStatus.textContent = text;
 }
 
+function setScanStep(step, completeCurrent = false) {
+  const order = ["captured", "prepared", "compressed", "uploaded", "extracting"];
+  const activeIndex = order.indexOf(step);
+  if (activeIndex < 0) return;
+  $$("[data-scan-step]").forEach((row) => {
+    const rowIndex = order.indexOf(row.dataset.scanStep);
+    row.classList.toggle("done", rowIndex < activeIndex || (completeCurrent && rowIndex === activeIndex));
+    row.classList.toggle("active", !completeCurrent && rowIndex === activeIndex);
+  });
+}
+
 function resetScanStatus() {
   $("#scanModeLabel").textContent = "Ready";
   $("#scanProgress").classList.add("hidden");
   $("#scanProgressTitle").textContent = "Reading receipt";
   $("#scanProgressText").textContent = "Preparing image...";
+  $$("[data-scan-step]").forEach((row) => {
+    row.classList.remove("done", "active");
+  });
 }
 
 async function readWithRemoteOcr(imageDataUrl) {
@@ -1293,35 +1312,15 @@ function renderAssignment() {
 
 function itemRowMarkup(item, covered) {
   const quantity = itemQuantity(item);
-  return `
-            <article class="item-row">
-              ${covered ? `<div class="covered-label">Already covered - tap names or steppers to edit</div>` : ""}
-              <div class="item-head">
-                <div class="item-title-line">
-                  <label>
-                    <span>Item</span>
-                    <input data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" />
-                  </label>
-                  <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
-                    <i data-lucide="trash-2"></i>
-                  </button>
-                </div>
-                <div class="parsed-item-fields">
-                  <label>
-                    <span>Qty</span>
-                    <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" />
-                  </label>
-                  <label class="currency-input">
-                    <span>Total</span>
-                    <em>${currencySymbol(parsedReceipt.currency)}</em>
-                    <input data-edit-item-amount="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(item.amount)}" />
-                  </label>
-                </div>
-              </div>
-              <div class="chip-grid">
-                ${state.people
-                  .map(
-                    (person) => `
+  const currency = parsedReceipt.currency;
+  const activePerson = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id || "";
+  const activeName = findPerson(activePerson)?.name || "you";
+  const activeSelected = Boolean(activePerson && item.assignedTo?.includes(activePerson));
+  const activeClaim = itemClaimQuantity(item, activePerson);
+  const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
+  const activeShare = itemShareForPerson(item, activePerson);
+  const otherPeople = state.people.filter((person) => person.id !== activePerson);
+  const personChip = (person) => `
                       <label class="chip">
                         <input type="checkbox" data-item="${item.id}" data-person="${person.id}" ${item.assignedTo?.includes(person.id) ? "checked" : ""}>
                         <span>${escapeHtml(person.name)}</span>
@@ -1335,10 +1334,69 @@ function itemRowMarkup(item, covered) {
                             : ""
                         }
                       </label>
-                    `
-                  )
-                  .join("")}
+                    `;
+  return `
+            <article class="item-row claim-card ${activeSelected ? "selected" : ""}">
+              ${covered ? `<div class="covered-label">Already covered - you can still adjust this item</div>` : ""}
+              <div class="claim-card-grid">
+                ${
+                  activePerson
+                    ? `<label class="claim-check" aria-label="Select ${escapeHtml(item.name)} for ${escapeHtml(activeName)}">
+                        <input type="checkbox" data-item="${item.id}" data-person="${activePerson}" ${activeSelected ? "checked" : ""}>
+                        <span></span>
+                      </label>`
+                    : ""
+                }
+                <div class="claim-item-copy">
+                  <input class="claim-name-input" data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" aria-label="Item name" />
+                  <div class="claim-meta">
+                    <span>${formatNative(unitPrice, currency)}${quantity > 1 ? " each" : ""}</span>
+                    ${quantity > 1 ? `<span>Qty: ${quantity}</span>` : ""}
+                  </div>
+                  ${activeSelected ? `<div class="claim-covering">Covering: ${formatNative(activeShare, currency)}</div>` : ""}
+                </div>
+                <div class="claim-side">
+                  <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
+                    <i data-lucide="trash-2"></i>
+                  </button>
+                  <strong class="claim-total">${formatNative(activeSelected ? activeShare : Number(item.amount || 0), currency)}</strong>
+                </div>
               </div>
+              ${
+                quantity > 1 && activePerson
+                  ? `<div class="claim-primary-stepper">
+                      <span>Your quantity</span>
+                      <div class="claim-stepper large" aria-label="${escapeHtml(activeName)} quantity">
+                        <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)} for ${escapeHtml(activeName)}"><i data-lucide="minus"></i></button>
+                        <strong data-claim-count="${item.id}" data-person="${activePerson}">${activeClaim || 0}</strong>
+                        <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)} for ${escapeHtml(activeName)}"><i data-lucide="plus"></i></button>
+                      </div>
+                    </div>`
+                  : ""
+              }
+              <div class="parsed-item-fields claim-edit-fields">
+                <label>
+                  <span>Qty</span>
+                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" />
+                </label>
+                <label class="currency-input">
+                  <span>Total</span>
+                  <em>${currencySymbol(currency)}</em>
+                  <input data-edit-item-amount="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(item.amount)}" />
+                </label>
+              </div>
+              ${
+                otherPeople.length
+                  ? `<details class="assign-others">
+                      <summary>Assign others</summary>
+                      <div class="chip-grid">
+                        ${otherPeople.map(personChip).join("")}
+                      </div>
+                    </details>`
+                  : state.people.length
+                    ? `<div class="chip-grid only-hidden">${state.people.map(personChip).join("")}</div>`
+                    : ""
+              }
             </article>
           `;
 }
