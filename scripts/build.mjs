@@ -1,6 +1,8 @@
-import { accessSync, existsSync, readFileSync } from "node:fs";
+import { accessSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 
-const requiredFiles = ["index.html", "client.js", "styles.css", "manifest.json", "sw.js", "api/ocr.js", "api/groups.js"];
+const staticFiles = ["index.html", "client.js", "styles.css", "manifest.json", "sw.js", "icon.svg"];
+const requiredFiles = [...staticFiles, "api/ocr.js", "api/groups.js"];
 
 for (const file of requiredFiles) {
   accessSync(file);
@@ -33,5 +35,23 @@ if (!manifest.name || !manifest.icons?.length || !manifest.theme_color) {
 if (app.includes("helloworld")) {
   throw new Error("Demo OCR key is still present.");
 }
+
+rmSync("public", { recursive: true, force: true });
+mkdirSync("public", { recursive: true });
+
+for (const file of staticFiles) {
+  const destination = join("public", file);
+  mkdirSync(dirname(destination), { recursive: true });
+  copyFileSync(file, destination);
+}
+
+copyFileSync("icon.svg", "public/favicon.ico");
+writeFileSync(
+  "public/favicon.png",
+  Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAPUlEQVR4AWP8z8Dwn4ECwESJ5lEDRgYkJCSOQWQwYGRk5Gf4z8DAwMAAE2YVwGqGghkYZyAaAwYqGgEAez4KAhLwpdkAAAAASUVORK5CYII=",
+    "base64",
+  ),
+);
 
 console.log("Production build checks passed.");

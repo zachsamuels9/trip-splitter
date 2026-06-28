@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { addPerson, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("./lib/group-store");
 
-const root = __dirname;
+const root = fs.existsSync(path.join(__dirname, "public")) ? path.join(__dirname, "public") : __dirname;
 const port = Number(process.env.PORT || 4173);
 const host = process.env.HOST || "127.0.0.1";
 

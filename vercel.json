@@ -1,6 +1,6 @@
 {
   "buildCommand": "pnpm build",
-  "outputDirectory": ".",
+  "outputDirectory": "public",
   "cleanUrls": true,
   "headers": [
     {
@@ -14,6 +14,26 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/styles.css",
+      "destination": "/styles.css"
+    },
+    {
+      "source": "/client.js",
+      "destination": "/client.js"
+    },
+    {
+      "source": "/manifest.json",
+      "destination": "/manifest.json"
+    },
+    {
+      "source": "/icon.svg",
+      "destination": "/icon.svg"
+    },
+    {
+      "source": "/favicon.png",
+      "destination": "/favicon.png"
+    },
     {
       "source": "/",
       "destination": "/index.html"
