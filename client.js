@@ -19,6 +19,7 @@ let activeGroup = null;
 let syncTimer = null;
 let deferredInstallPrompt = null;
 let installReturnScreen = "home";
+let inviteReturnScreen = "settings";
 const settingsReturnScreens = new Set();
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
@@ -227,8 +228,12 @@ function bindEvents() {
     installReturnScreen = "settings";
     showScreen("install");
   });
-  $("#settingsInvite").addEventListener("click", () => showScreen("invite"));
+  $("#settingsInvite").addEventListener("click", () => {
+    inviteReturnScreen = "settings";
+    showScreen("invite");
+  });
   $("#settingsCopyInvite").addEventListener("click", copyInviteLink);
+  $("#inviteHome").addEventListener("click", () => showScreen("home"));
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
   $("#leaveTrip").addEventListener("click", leaveTrip);
   $("#loggedInBox").addEventListener("click", leaveTrip);
@@ -252,6 +257,7 @@ function bindEvents() {
     event.preventDefault();
   });
 
+  $("#startCreateGroup").addEventListener("click", createStartGroup);
   $("#createGroup").addEventListener("click", createGroup);
   $("#copyInvite").addEventListener("click", copyInviteLink);
   $("#joinGroupForm").addEventListener("submit", joinGroup);
@@ -303,6 +309,7 @@ function showScreen(name) {
 
 function renderInviteScreen() {
   $("#settingsInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
+  $("#screen-invite .back-button").dataset.screen = inviteReturnScreen;
 }
 
 function updateBackTargets(name) {
@@ -314,9 +321,8 @@ function updateBackTargets(name) {
 }
 
 function showStartOnboarding() {
-  browserDocument?.body.classList.add("start-onboarding");
-  showScreen("home");
-  browserDocument?.body.classList.add("start-onboarding");
+  browserDocument?.body.classList.remove("start-onboarding");
+  showScreen("start");
 }
 
 async function refreshRates() {
@@ -364,12 +370,21 @@ async function initGroup() {
   }
 }
 
+async function createStartGroup() {
+  await createGroupFromValues($("#startGroupName").value, $("#startOwnerName").value, "invite");
+}
+
 async function createGroup() {
-  const name = $("#groupName").value.trim() || "Trip group";
-  const personName = $("#ownerName").value.trim();
+  await createGroupFromValues($("#groupName").value, $("#ownerName").value, "install");
+}
+
+async function createGroupFromValues(rawName, rawPersonName, nextScreen) {
+  const name = String(rawName || "").trim() || "Trip group";
+  const personName = String(rawPersonName || "").trim();
   if (!personName) {
     safeAlert("Enter your name to create the trip.");
-    $("#ownerName").focus();
+    const field = nextScreen === "invite" ? $("#startOwnerName") : $("#ownerName");
+    field?.focus();
     return;
   }
   try {
@@ -382,13 +397,18 @@ async function createGroup() {
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     writeStorage(`trip-split-owner-${activeGroupId}`, activePersonId);
-    if (isBrowser) window.history.replaceState(null, "", inviteUrl());
+    if (isBrowser) window.history.replaceState(null, "", "/");
     applyGroup(result.group);
     rememberGroup(result.group, activePersonId);
     startSync();
     render();
-    installReturnScreen = "home";
-    showScreen("install");
+    if (nextScreen === "invite") {
+      inviteReturnScreen = "home";
+      showScreen("invite");
+    } else {
+      installReturnScreen = "home";
+      showScreen("install");
+    }
   } catch {
     safeAlert("Could not create a shared group. Start the Trip Split server and try again.");
   }
@@ -410,6 +430,7 @@ async function joinGroup(event) {
     rememberGroup(result.group, activePersonId);
     startSync();
     render();
+    if (isBrowser) window.history.replaceState(null, "", "/");
     installReturnScreen = "home";
     showScreen("install");
   } catch {

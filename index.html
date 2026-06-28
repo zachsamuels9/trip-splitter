@@ -18,7 +18,27 @@
   </head>
   <body>
     <main class="shell">
-      <section class="screen active" id="screen-home">
+      <section class="screen active" id="screen-start">
+        <header class="flow-header">
+          <h1>Create trip</h1>
+        </header>
+        <section class="panel">
+          <h2>Start a new group</h2>
+          <div class="group-actions">
+            <label>
+              <span>Group name</span>
+              <input id="startGroupName" type="text" placeholder="Weekend trip" aria-label="Group name" required />
+            </label>
+            <label>
+              <span>Your name</span>
+              <input id="startOwnerName" type="text" placeholder="Your name" aria-label="Your name" required />
+            </label>
+            <button class="primary full" id="startCreateGroup"><i data-lucide="link"></i><span>Create invite link</span></button>
+          </div>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-home">
         <header class="home-header">
           <div>
             <p class="eyebrow">Trip Split</p>
@@ -154,6 +174,7 @@
             <input id="settingsInviteLink" type="text" readonly aria-label="Trip invite link" />
           </label>
           <button class="primary full" id="settingsCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
+          <button class="primary full secondary-action" id="inviteHome"><i data-lucide="home"></i><span>Go to trip</span></button>
         </section>
       </section>
 
