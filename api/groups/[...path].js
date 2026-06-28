@@ -1,10 +1,15 @@
-const { addPerson, getRequiredGroup, publicGroup, upsertReceipt } = require("../../lib/group-store");
+const { addPerson, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("../../lib/group-store");
 
 module.exports = async function handler(req, res) {
   try {
     const parts = Array.isArray(req.query.path) ? req.query.path : [];
     const [groupId, child] = parts;
     if (!groupId) {
+      if (req.method === "POST") {
+        const result = await createGroup(parseBody(req.body));
+        res.status(201).json(result);
+        return;
+      }
       res.status(404).json({ error: "Not found" });
       return;
     }
@@ -32,3 +37,15 @@ module.exports = async function handler(req, res) {
     res.status(error.statusCode || 500).json({ error: error.message || "Server error" });
   }
 };
+
+function parseBody(body) {
+  if (!body) return {};
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return {};
+    }
+  }
+  return body;
+}

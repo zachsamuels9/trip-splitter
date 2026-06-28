@@ -409,8 +409,8 @@ async function createGroupFromValues(rawName, rawPersonName, nextScreen) {
       installReturnScreen = "home";
       showScreen("install");
     }
-  } catch {
-    safeAlert("Could not create a shared group. Start the Trip Split server and try again.");
+  } catch (error) {
+    safeAlert(error.message || "Could not create a shared group. Try again in a moment.");
   }
 }
 
