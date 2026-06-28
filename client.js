@@ -1643,8 +1643,10 @@ function removePerson(personId) {
 }
 
 function renderTotals() {
+  const totalsList = $("#totalsList");
+  if (!totalsList) return;
   const balances = calculateBalances();
-  $("#totalsList").innerHTML = state.people.length
+  totalsList.innerHTML = state.people.length
     ? state.people
         .map((person) => {
           const totals = personTotals(person.id);
