@@ -4,6 +4,7 @@
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#09070e",
   "theme_color": "#09070e",
   "description": "Track trip receipts, split items, convert currencies, and settle up.",

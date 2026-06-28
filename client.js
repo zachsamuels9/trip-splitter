@@ -2,6 +2,7 @@ const storeKey = "trip-split-state-v2";
 const rateKey = "trip-split-rates-v1";
 const groupsKey = "trip-split-known-groups-v1";
 const accountEmailKey = "trip-split-account-email";
+const iosInstallChoiceKey = "trip-split-ios-install-choice-v1";
 const supportedCurrencies = ["USD", "THB", "VND"];
 const defaultRates = { USD: 1, THB: 36.7, VND: 25400 };
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
@@ -10,6 +11,7 @@ const browserDocument = isBrowser ? document : null;
 let state = loadState();
 let rates = loadRates();
 let parsedReceipt = null;
+let initiallyCoveredItemIds = new Set();
 let manualAttachmentDataUrl = "";
 let splitMode = "items";
 let splitCount = 2;
@@ -19,7 +21,6 @@ let activeGroupId = currentGroupId();
 let activePersonId = activeGroupId ? readStorage(`trip-split-person-${activeGroupId}`) || "" : "";
 let activeGroup = null;
 let syncTimer = null;
-let deferredInstallPrompt = null;
 let installReturnScreen = "home";
 let inviteReturnScreen = "settings";
 const settingsReturnScreens = new Set();
@@ -29,10 +30,6 @@ const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
 if (isBrowser) {
-  window.addEventListener("beforeinstallprompt", (event) => {
-    event.preventDefault();
-    deferredInstallPrompt = event;
-  });
   browserDocument.addEventListener("DOMContentLoaded", async () => {
     bindEvents();
     seedManualRows();
@@ -258,24 +255,26 @@ function bindEvents() {
   });
   $("#accountSignIn").addEventListener("click", signInAccount);
   $("#startBack").addEventListener("click", () => showScreen("groups"));
-  $("#installNative").addEventListener("click", promptInstall);
-  $("#installHome").addEventListener("click", () => showScreen("home"));
+  $("#installNative").addEventListener("click", completeInstallStep);
+  $("#installHome").addEventListener("click", skipInstallStep);
   $("#installBack").addEventListener("click", () => showScreen(installReturnScreen));
   $("#showInstallHelp").addEventListener("click", () => {
     installReturnScreen = "settings";
-    showScreen("install");
+    if (isIphoneSafari()) showInstallOrContinue(true);
+    else safeAlert("Home Screen install guidance is only shown on iPhone Safari.");
   });
   $("#settingsInvite").addEventListener("click", () => {
     inviteReturnScreen = "settings";
     showScreen("invite");
   });
   $("#settingsCopyInvite").addEventListener("click", copyInviteLink);
+  $("#settingsTextInvite").addEventListener("click", textInviteLink);
   $("#inviteHome").addEventListener("click", () => showScreen("home"));
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
   $("#leaveTrip").addEventListener("click", leaveTrip);
   $("#signOut").addEventListener("click", signOutAccount);
   $("#saveAccount").addEventListener("click", saveAccountSettings);
-  $("#loggedInBox").addEventListener("click", leaveTrip);
+  $("#loggedInBox").addEventListener("click", () => showScreen("account-settings"));
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
   $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
@@ -358,6 +357,8 @@ function showScreen(name) {
 function renderInviteScreen() {
   $("#settingsInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
   $("#screen-invite .back-button").dataset.screen = inviteReturnScreen;
+  $("#inviteHome").classList.toggle("hidden", inviteReturnScreen === "settings");
+  $("#inviteCopyStatus").textContent = "";
 }
 
 function updateBackTargets(name) {
@@ -370,8 +371,24 @@ function updateBackTargets(name) {
 
 function showStartOnboarding(returnTo = "") {
   browserDocument?.body.classList.remove("start-onboarding");
+  removeStorage(iosInstallChoiceKey);
   $("#startBack").classList.toggle("hidden", returnTo !== "groups");
   showScreen("start");
+}
+
+function isIphoneSafari() {
+  if (!isBrowser) return false;
+  const ua = navigator.userAgent || "";
+  return /iphone/i.test(ua) && /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+}
+
+function shouldShowIosInstallStep() {
+  return isIphoneSafari() && readStorage(iosInstallChoiceKey) !== "done";
+}
+
+function showInstallOrContinue(force = false) {
+  if (force || shouldShowIosInstallStep()) showScreen("install");
+  else showScreen(installReturnScreen || "home");
 }
 
 function lockPortraitOrientation() {
@@ -477,7 +494,7 @@ async function createGroupFromValues(rawName, rawPersonName, nextScreen, account
       showScreen("invite");
     } else {
       installReturnScreen = "home";
-      showScreen("install");
+      showInstallOrContinue();
     }
   } catch (error) {
     safeAlert(error.message || "Could not create a shared group. Try again in a moment.");
@@ -509,7 +526,7 @@ async function joinGroup(event) {
     render();
     setAppGroupUrl();
     installReturnScreen = "home";
-    showScreen("install");
+    showInstallOrContinue();
   } catch {
     safeAlert("Could not join this trip. Check that the invite server is running.");
   }
@@ -529,11 +546,21 @@ async function copyInviteLink() {
     await navigator.clipboard.writeText(link);
     const status = $("#groupStatus");
     if (status) status.textContent = "Invite copied";
+    const inviteStatus = $("#inviteCopyStatus");
+    if (inviteStatus) inviteStatus.textContent = "Invite link copied.";
   } catch {
     browserDocument?.execCommand("copy");
     const status = $("#groupStatus");
     if (status) status.textContent = "Invite copied";
+    const inviteStatus = $("#inviteCopyStatus");
+    if (inviteStatus) inviteStatus.textContent = "Invite link copied.";
   }
+}
+
+function textInviteLink() {
+  if (!activeGroupId || !isBrowser) return;
+  const body = encodeURIComponent(`Join my Trip Split group: ${inviteUrl()}`);
+  window.location.href = `sms:&body=${body}`;
 }
 
 async function addPerson(name) {
@@ -689,7 +716,7 @@ async function scanImage(event) {
     const imageDataUrl = await optimizeImageDataUrl(originalImageDataUrl);
     const ocr = await readReceiptText(imageDataUrl);
     const text = ocr.text || "";
-    const detectedCurrency = ocr.receipt?.currency || detectCurrency(text, $("#receiptCurrency").value);
+    const detectedCurrency = inferReceiptCurrency(ocr.receipt, text, $("#receiptCurrency").value);
     $("#receiptCurrency").value = detectedCurrency;
     parsedReceipt = receiptFromOcrResult(ocr, imageDataUrl, detectedCurrency);
     parsedReceipt.ocrText = text;
@@ -782,14 +809,16 @@ function prepareScanReceipt() {
     source: "scan",
     imageDataUrl: "",
   };
+  initiallyCoveredItemIds = new Set();
   renderAssignment();
 }
 
 function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
   const structured = ocr.receipt || {};
   const text = ocr.text || "";
+  const currency = inferReceiptCurrency(structured, text, fallbackCurrency);
   const fallbackName = structured.merchant || detectRestaurantName(text) || "Scanned receipt";
-  const fallback = parseReceipt(text, structured.currency || fallbackCurrency || "USD", {
+  const fallback = parseReceipt(text, currency, {
     name: fallbackName,
     restaurantName: structured.merchant || "",
     date: structured.date || detectReceiptDate(text) || new Date().toISOString().slice(0, 10),
@@ -820,7 +849,7 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
   const discount = roundCents(structured.discount || 0);
   const receipt = {
     ...fallback,
-    currency: structured.currency || fallback.currency,
+    currency,
     name: fallbackName,
     restaurantName: structured.merchant || fallback.restaurantName || "",
     date: structured.date || fallback.date,
@@ -839,6 +868,13 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
     receipt.fees.push({ id: createId(), name: "Unitemized amount", amount: roundCents(knownTotal - calculated) });
   }
   return receipt;
+}
+
+function inferReceiptCurrency(receipt, text, fallback = "USD") {
+  const context = [text, receipt?.merchant, ...(receipt?.lineItems || []).map((item) => `${item.name || ""} ${item.currency || ""}`)].join("\n");
+  const contextCurrency = detectCurrency(context, "");
+  if (contextCurrency && (contextCurrency !== "USD" || !/\$|\bUSD\b/i.test(context))) return contextCurrency;
+  return receipt?.currency || contextCurrency || fallback || "USD";
 }
 
 function parseReceipt(text, currency, meta = {}) {
@@ -958,8 +994,8 @@ function normalizeDateParts(year, month, day) {
 
 function detectCurrency(text, fallback = "USD") {
   const sample = text || "";
-  if (/[฿]|(?:\bTHB\b|\bBAHT\b)/i.test(sample)) return "THB";
-  if (/[₫]|(?:\bVND\b|\bDONG\b|\bVIETNAM\b|\bVNĐ\b)/i.test(sample)) return "VND";
+  if (/[฿]|(?:\bTHB\b|\bBAHT\b|\bBANGKOK\b|\bPHUKET\b|\bCHIANG\s*MAI\b|\bTHAILAND\b|ถนน|กรุงเทพ|บาท)/i.test(sample)) return "THB";
+  if (/[₫]|(?:\bVND\b|\bDONG\b|\bVIETNAM\b|\bVNĐ\b|\bHANOI\b|\bSAIGON\b|\bHO CHI MINH\b|đường|quận)/i.test(sample)) return "VND";
   if (/\$|\bUSD\b/i.test(sample)) return "USD";
   return supportedCurrencies.includes(fallback) ? fallback : "USD";
 }
@@ -1194,6 +1230,7 @@ function buildManualReceipt() {
     fees,
     discount: draft.discount,
   };
+  initiallyCoveredItemIds = new Set();
   splitMode = "items";
   manualAttachmentDataUrl = "";
   $("#manualAttachment").value = "";
@@ -1223,8 +1260,8 @@ function renderAssignment() {
   renderEvenPeopleList();
   renderAmountSplitList();
 
-  const coveredItems = editingReceiptId ? parsedReceipt.items.filter((item) => !itemHasUnassignedQuantity(item)) : [];
-  const editableItems = editingReceiptId ? parsedReceipt.items.filter(itemHasUnassignedQuantity) : parsedReceipt.items;
+  const coveredItems = editingReceiptId ? parsedReceipt.items.filter((item) => initiallyCoveredItemIds.has(item.id)) : [];
+  const editableItems = editingReceiptId ? parsedReceipt.items.filter((item) => !initiallyCoveredItemIds.has(item.id)) : parsedReceipt.items;
   $("#coveredItemsPanel").classList.toggle("hidden", coveredItems.length === 0);
   $("#coveredItemsList").innerHTML = coveredItems.map((item) => itemRowMarkup(item, true)).join("");
 
@@ -1456,11 +1493,13 @@ function setSplitMode(mode) {
   $("#pickItemsPanel").classList.toggle("hidden", mode !== "items");
   $("#evenSplitPanel").classList.toggle("hidden", mode !== "even");
   $("#amountSplitPanel").classList.toggle("hidden", mode !== "amounts");
+  $("#itemizeActions").classList.toggle("inline-actions", mode !== "items");
   renderAssignment();
 }
 
 function updateSplitCount(next) {
-  splitCount = Math.max(1, Math.min(30, next));
+  const maxPeople = Math.max(1, state.people.length || 1);
+  splitCount = Math.max(1, Math.min(maxPeople, next));
   splitEvenPeople = state.people.slice(0, splitCount).map((person) => person.id);
   renderAssignment();
 }
@@ -1481,7 +1520,7 @@ function renderEvenPeopleList() {
   $$("[data-even-person]").forEach((box) => {
     box.addEventListener("change", () => {
       splitEvenPeople = $$("[data-even-person]:checked").map((input) => input.dataset.evenPerson);
-      splitCount = Math.max(1, splitEvenPeople.length);
+      splitCount = Math.max(1, Math.min(state.people.length || 1, splitEvenPeople.length));
       renderReceiptTotals();
       updateSelectionBar();
     });
@@ -1814,6 +1853,7 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
   }
   parsedReceipt = null;
   editingReceiptId = null;
+  initiallyCoveredItemIds = new Set();
   saveState();
   saveGroupReceipt(receipt);
   render();
@@ -1933,6 +1973,7 @@ function renderGroupUi() {
   $("#homeTripTitle").textContent = activeGroup?.name || "Group expenses";
   const closed = isTripClosed();
   $(".action-panel")?.classList.toggle("hidden", closed);
+  $(".quick-nav")?.classList.toggle("trip-closed", closed);
   $("#closedBanner")?.classList.toggle("hidden", !closed);
   $("#settlementList")?.closest(".panel")?.classList.toggle("settle-focus", closed);
   $("#groupSignedOut").classList.toggle("hidden", signedIn);
@@ -2036,11 +2077,9 @@ function signOutAccount() {
 }
 
 function renderInstallScreen() {
-  setAppGroupUrl();
+  if (isBrowser) window.history.replaceState(null, "", "/");
   $("#installBack").classList.remove("hidden");
-  $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
-    ? "This page is set to the trip home. Safari requires Share, then Add to Home Screen."
-    : "Use Add app when available, or install Trip Split from your browser menu.";
+  $("#installPromptText").textContent = "For the best experience, add Trip Split to your iPhone Home Screen so it opens like an app.";
 }
 
 async function loadAdminTrips() {
@@ -2320,6 +2359,7 @@ function openReceiptForClaiming(receiptId) {
   editingReceiptId = receipt.id;
   parsedReceipt = JSON.parse(JSON.stringify(receipt));
   parsedReceipt.paidBy = receipt.paidBy;
+  initiallyCoveredItemIds = new Set((parsedReceipt.items || []).filter((item) => !itemHasUnassignedQuantity(item)).map((item) => item.id));
   splitMode = "items";
   setSplitMode("items");
   renderAssignment();
@@ -2340,14 +2380,12 @@ function renderSettlements() {
         .map(
           (settlement) => `
             <div class="settle-row">
-              <div>
+              <div class="settle-copy">
                 <div class="row-name">${escapeHtml(settlement.from)} pays ${escapeHtml(settlement.to)}</div>
                 <div class="subtext">Final net settlement</div>
               </div>
-              <div class="settle-actions">
-                <div class="money">${money.format(settlement.amount)}</div>
-                <button class="small-primary" data-settle="${settlement.id}"><span>Settled</span></button>
-              </div>
+              <div class="money settlement-amount">${money.format(settlement.amount)}</div>
+              <button class="small-primary full settle-button" data-settle="${settlement.id}"><span>Tap to settle</span></button>
             </div>
           `
         )
@@ -2358,14 +2396,12 @@ function renderSettlements() {
           .map(
             (settlement) => `
               <div class="settle-row">
-                <div>
+                <div class="settle-copy">
                   <div class="row-name">${escapeHtml(settlement.from)} paid ${escapeHtml(settlement.to)}</div>
                   <div class="subtext">Archived settlement</div>
                 </div>
-                <div class="settle-actions">
-                  <div class="money">${money.format(settlement.amount)}</div>
-                  <button class="small-primary" data-unsettle="${settlement.id}"><span>Unsettle</span></button>
-                </div>
+                <div class="money settlement-amount">${money.format(settlement.amount)}</div>
+                <button class="small-primary full settle-button" data-unsettle="${settlement.id}"><span>Tap to unsettle</span></button>
               </div>
             `
           )
@@ -2547,17 +2583,14 @@ function possessive(name) {
   return `${clean}${clean.endsWith("s") ? "'" : "'s"}`;
 }
 
-async function promptInstall() {
-  if (deferredInstallPrompt) {
-    deferredInstallPrompt.prompt();
-    await deferredInstallPrompt.userChoice.catch(() => null);
-    deferredInstallPrompt = null;
-    showScreen(installReturnScreen);
-    return;
-  }
-  $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
-    ? "Safari does not allow this button to open the install sheet. Tap Share, then Add to Home Screen."
-    : "Open your browser menu and choose Install app or Add to Home Screen.";
+function completeInstallStep() {
+  writeStorage(iosInstallChoiceKey, "done");
+  showScreen(installReturnScreen || "home");
+}
+
+function skipInstallStep() {
+  writeStorage(iosInstallChoiceKey, "done");
+  showScreen(installReturnScreen || "home");
 }
 
 function downloadAllReceipts() {

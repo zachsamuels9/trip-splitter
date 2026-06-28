@@ -199,9 +199,15 @@
         <section class="receipt-card">
           <p>Trip Split is ready</p>
           <strong>Save this app</strong>
-          <span id="installPromptText">Use your browser share button, then choose Add to Home Screen.</span>
-          <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
-          <button class="primary full secondary-action" id="installHome"><i data-lucide="home"></i><span>Go to trip</span></button>
+          <span id="installPromptText">For the best experience, add Trip Split to your iPhone Home Screen so it opens like an app.</span>
+          <ol class="install-steps">
+            <li>Tap the Share icon in Safari.</li>
+            <li>Scroll down and tap “Add to Home Screen.”</li>
+            <li>Tap “Add.”</li>
+            <li>Open Trip Split from the new Home Screen icon.</li>
+          </ol>
+          <button class="primary full" id="installNative"><i data-lucide="check"></i><span>I added it / Continue</span></button>
+          <button class="primary full secondary-action" id="installHome"><i data-lucide="skip-forward"></i><span>Skip for now</span></button>
         </section>
       </section>
 
@@ -216,6 +222,8 @@
             <input id="settingsInviteLink" type="text" readonly aria-label="Trip invite link" />
           </label>
           <button class="primary full" id="settingsCopyInvite"><i data-lucide="copy"></i><span>Copy join link</span></button>
+          <button class="primary full secondary-action" id="settingsTextInvite"><i data-lucide="message-square-share"></i><span>Text invite link</span></button>
+          <p class="subtext centered" id="inviteCopyStatus"></p>
           <button class="primary full secondary-action" id="inviteHome"><i data-lucide="home"></i><span>Go to trip</span></button>
         </section>
       </section>
@@ -580,6 +588,7 @@
               <option value="receipt">Receipt date</option>
             </select>
           </label>
+          <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download all receipts</span></button>
           <div id="historyList" class="history-list"></div>
         </section>
       </section>
@@ -613,7 +622,6 @@
           <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite</span></button>
           <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
           <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
-          <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>
           <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
           <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
           <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
