@@ -1,7 +1,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("./lib/group-store");
+const { addPerson, closeGroup, createGroup, deleteTrip, getRequiredGroup, listTrips, publicGroup, reopenGroup, upsertReceipt } = require("./lib/group-store");
 
 const root = fs.existsSync(path.join(__dirname, "public")) ? path.join(__dirname, "public") : __dirname;
 const port = Number(process.env.PORT || 4173);
@@ -56,6 +56,26 @@ function readRawBody(req) {
 }
 
 async function handleApi(req, res, url) {
+  if (url.pathname === "/api/admin/trips") {
+    if (url.searchParams.get("password") !== "1234") {
+      sendJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
+    sendJson(res, 200, await listTrips());
+    return;
+  }
+
+  const adminDeleteMatch = url.pathname.match(/^\/api\/admin\/trips\/([^/]+)$/);
+  if (adminDeleteMatch && req.method === "DELETE") {
+    const body = await readBody(req);
+    if (body.password !== "1234") {
+      sendJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
+    sendJson(res, 200, await deleteTrip(adminDeleteMatch[1]));
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/ocr") {
     const apiKey = process.env.OCR_SPACE_API_KEY;
     if (!apiKey) {
@@ -92,7 +112,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close))?$/);
+  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen))?$/);
   if (!groupMatch) {
     sendJson(res, 404, { error: "Not found" });
     return;
@@ -120,6 +140,12 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && groupMatch[2] === "close") {
     const result = await closeGroup(groupMatch[1]);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && groupMatch[2] === "reopen") {
+    const result = await reopenGroup(groupMatch[1]);
     sendJson(res, 200, result);
     return;
   }

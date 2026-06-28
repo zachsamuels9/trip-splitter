@@ -1,4 +1,4 @@
-const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, upsertReceipt } = require("../../lib/group-store");
+const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, reopenGroup, upsertReceipt } = require("../../lib/group-store");
 
 module.exports = async function handler(req, res) {
   try {
@@ -34,6 +34,12 @@ module.exports = async function handler(req, res) {
 
     if (req.method === "POST" && child === "close") {
       const result = await closeGroup(groupId);
+      res.status(200).json(result);
+      return;
+    }
+
+    if (req.method === "POST" && child === "reopen") {
+      const result = await reopenGroup(groupId);
       res.status(200).json(result);
       return;
     }

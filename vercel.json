@@ -43,6 +43,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/admin",
+      "destination": "/index.html"
+    },
+    {
       "source": "/favicon.ico",
       "destination": "/icon.svg"
     }

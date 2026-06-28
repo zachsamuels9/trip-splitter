@@ -459,18 +459,15 @@ textarea {
 }
 
 .item-row {
-  position: relative;
-  padding: 12px 58px 12px 12px;
+  padding: 12px;
 }
 
 .delete-item {
-  position: absolute;
-  top: 14px;
-  right: 14px;
+  flex: 0 0 52px;
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
+  width: 52px;
+  height: 56px;
   border-radius: 14px;
   background: var(--field);
   color: var(--danger);
@@ -635,8 +632,15 @@ textarea {
 
 .parsed-item-fields {
   display: grid;
-  grid-template-columns: 1.45fr 0.55fr 0.75fr;
+  grid-template-columns: 0.75fr 1fr;
   gap: 8px;
+}
+
+.item-title-line {
+  display: grid;
+  grid-template-columns: 1fr 52px;
+  gap: 10px;
+  align-items: end;
 }
 
 .currency-input {
@@ -781,7 +785,7 @@ textarea {
   place-items: center;
   border: 1px solid rgba(47, 208, 233, 0.54);
   border-radius: 16px;
-  background: rgba(47, 208, 233, 0.32);
+  background: rgba(21, 81, 95, 0.96);
   color: var(--cyan);
   font-weight: 1000;
 }

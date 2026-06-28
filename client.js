@@ -9,6 +9,7 @@ const browserDocument = isBrowser ? document : null;
 let state = loadState();
 let rates = loadRates();
 let parsedReceipt = null;
+let manualAttachmentDataUrl = "";
 let splitMode = "items";
 let splitCount = 2;
 let splitEvenPeople = [];
@@ -38,6 +39,11 @@ if (isBrowser) {
     lockPortraitOrientation();
     state.receipts = normalizeReceipts(state.receipts);
     refreshRates();
+    if (isAdminRoute()) {
+      render();
+      showScreen("admin");
+      return;
+    }
     if (isStartRoute() && !startInviteGroupId()) {
       activeGroupId = "";
       activePersonId = "";
@@ -151,6 +157,11 @@ function isStartRoute() {
   return window.location.pathname.replace(/\/$/, "") === "/start";
 }
 
+function isAdminRoute() {
+  if (!isBrowser) return false;
+  return window.location.pathname.replace(/\/$/, "") === "/admin";
+}
+
 function readStorage(key) {
   if (!isBrowser) return null;
   try {
@@ -243,6 +254,9 @@ function bindEvents() {
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
   $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
+  $("#deleteTrip").addEventListener("click", deleteActiveTrip);
+  $("#adminUnlock").addEventListener("click", loadAdminTrips);
+  $("#adminRefresh").addEventListener("click", loadAdminTrips);
   $("#itemizeReceiptPreview").addEventListener("click", openReceiptImagePreview);
   $("#closeImageViewer").addEventListener("click", closeReceiptImagePreview);
   $("#imageViewerDownload").addEventListener("click", downloadPreviewImage);
@@ -270,7 +284,9 @@ function bindEvents() {
 
   $("#receiptImage").addEventListener("change", scanImage);
   $("#receiptUpload").addEventListener("change", scanImage);
+  $("#manualAttachment").addEventListener("change", storeManualAttachment);
   $("#addManualItem").addEventListener("click", () => addManualItem());
+  $("#claimRemaining").addEventListener("click", claimAllRemaining);
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
   $("#addParsedItem").addEventListener("click", addParsedItem);
   $("#reviewSelections").addEventListener("click", reviewSelections);
@@ -914,6 +930,11 @@ function setTodayIfBlank() {
   if (!$("#manualDate").value) $("#manualDate").value = new Date().toISOString().slice(0, 10);
 }
 
+async function storeManualAttachment(event) {
+  const file = event.target.files?.[0];
+  manualAttachmentDataUrl = file ? await fileToDataUrl(file) : "";
+}
+
 function addManualItem(name = "", qty = 1, price = "") {
   const id = createId();
   const row = browserDocument.createElement("article");
@@ -1010,7 +1031,7 @@ function buildManualReceipt() {
     date: $("#manualDate").value || new Date().toISOString().slice(0, 10),
     description: $("#manualDescription").value.trim(),
     source: "manual",
-    imageDataUrl: "",
+    imageDataUrl: manualAttachmentDataUrl,
     restaurantName: "",
     items: draft.items.map((item) => ({
       id: createId(),
@@ -1025,6 +1046,8 @@ function buildManualReceipt() {
     discount: draft.discount,
   };
   splitMode = "items";
+  manualAttachmentDataUrl = "";
+  $("#manualAttachment").value = "";
   setSplitMode("items");
   renderAssignment();
   showScreen("itemize");
@@ -1051,22 +1074,31 @@ function renderAssignment() {
   renderEvenPeopleList();
   renderAmountSplitList();
 
-  $("#itemsList").innerHTML = parsedReceipt.items.length
-    ? parsedReceipt.items
+  const openItems = parsedReceipt.items.filter((item) => !itemHasUnassignedQuantity(item));
+  const remainingItems = parsedReceipt.items.filter(itemHasUnassignedQuantity);
+  $("#coveredItemsPanel").classList.toggle("hidden", openItems.length === 0);
+  $("#coveredItemsList").innerHTML = openItems
+    .map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount, parsedReceipt.currency)}</strong></div>`)
+    .join("");
+
+  $("#itemsList").innerHTML = remainingItems.length
+    ? remainingItems
         .map(
           (item) => {
             const quantity = itemQuantity(item);
             return `
             <article class="item-row">
-              <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
-                <i data-lucide="trash-2"></i>
-              </button>
               <div class="item-head">
-                <div class="parsed-item-fields">
+                <div class="item-title-line">
                   <label>
                     <span>Item</span>
                     <input data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" />
                   </label>
+                  <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
+                    <i data-lucide="trash-2"></i>
+                  </button>
+                </div>
+                <div class="parsed-item-fields">
                   <label>
                     <span>Qty</span>
                     <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" />
@@ -1281,6 +1313,7 @@ function setSplitMode(mode) {
 
 function updateSplitCount(next) {
   splitCount = Math.max(1, Math.min(30, next));
+  splitEvenPeople = state.people.slice(0, splitCount).map((person) => person.id);
   renderAssignment();
 }
 
@@ -1367,6 +1400,27 @@ function collectAssignmentChoices() {
       item.claims = {};
     }
   });
+}
+
+function claimAllRemaining() {
+  if (!parsedReceipt) return;
+  const personId = activePersonId || $("#reviewPaidBy").value;
+  if (!personId) return;
+  parsedReceipt.items.forEach((item) => {
+    if (!itemHasUnassignedQuantity(item)) return;
+    const quantity = itemQuantity(item);
+    if (quantity > 1) {
+      const claimed = sum(Object.values(item.claims || {}));
+      const remaining = Math.max(0, quantity - claimed);
+      if (remaining > 0) {
+        item.claims = { ...(item.claims || {}), [personId]: Number(item.claims?.[personId] || 0) + remaining };
+        item.assignedTo = Array.from(new Set([...(item.assignedTo || []), personId]));
+      }
+    } else {
+      item.assignedTo = Array.from(new Set([...(item.assignedTo || []), personId]));
+    }
+  });
+  renderAssignment();
 }
 
 function selectedItemsForActivePerson() {
@@ -1485,7 +1539,7 @@ function reviewSelections() {
   const nativeTotal = selectedNativeTotal();
   $("#selectionReviewList").innerHTML = [
     ...items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(itemShareForActivePerson(item), parsedReceipt.currency)}</strong></div>`),
-    adjustment ? `<div class="fee-row adjustment-row"><span>Tip, tax, fees, discounts</span><strong>${formatNative(adjustment, parsedReceipt.currency)}</strong></div>` : "",
+    adjustment ? `<div class="fee-row adjustment-row"><span>Tip, tax, fees</span><strong>${formatNative(adjustment, parsedReceipt.currency)}</strong></div>` : "",
     convertedLine(nativeTotal, parsedReceipt.currency),
   ]
     .filter(Boolean)
@@ -1720,7 +1774,10 @@ function renderGroupUi() {
   $("#memberNameLabel").textContent = `Signed in as ${person?.name || "Guest"}`;
   $("#inviteLink").value = inviteUrl();
   $("#resetApp").classList.toggle("hidden", !isTripOwner());
+  $("#leaveTrip").classList.toggle("hidden", isTripOwner());
   $("#closeTrip").classList.toggle("hidden", !isTripOwner());
+  $("#deleteTrip").classList.toggle("hidden", !isTripOwner());
+  $("#closeTripLabel").textContent = closed ? "Reopen trip" : "Close trip and settle";
 }
 
 function isTripClosed() {
@@ -1729,15 +1786,34 @@ function isTripClosed() {
 
 async function closeTrip() {
   if (!activeGroupId || !isTripOwner()) return;
-  if (!safeConfirm("Close this trip for settlement?")) return;
+  const closed = isTripClosed();
+  if (!safeConfirm(closed ? "Reopen this trip for new expenses?" : "Close this trip for settlement?")) return;
   try {
-    const result = await api(`/api/groups/${activeGroupId}/close`, { method: "POST" });
+    const result = await api(`/api/groups/${activeGroupId}/${closed ? "reopen" : "close"}`, { method: "POST" });
     applyGroup(result.group);
   } catch {
-    writeStorage(`trip-split-closed-${activeGroupId}`, "true");
+    if (closed) removeStorage(`trip-split-closed-${activeGroupId}`);
+    else writeStorage(`trip-split-closed-${activeGroupId}`, "true");
   }
   render();
-  showScreen("settle");
+  showScreen(closed ? "home" : "settle");
+}
+
+async function deleteActiveTrip() {
+  if (!activeGroupId || !isTripOwner()) return;
+  if (!safeConfirm("Delete this trip for everyone? This cannot be undone.")) return;
+  if (!safeConfirm("Really delete this trip and all receipts?")) return;
+  await api(`/api/admin/trips/${activeGroupId}`, { method: "DELETE", body: { password: "1234" } });
+  removeStorage(`trip-split-person-${activeGroupId}`);
+  removeStorage(`trip-split-owner-${activeGroupId}`);
+  removeStorage("trip-split-group-id");
+  saveKnownGroups(loadKnownGroups().filter((group) => group.id !== activeGroupId));
+  activeGroupId = "";
+  activePersonId = "";
+  activeGroup = null;
+  state = defaultState();
+  render();
+  showScreen("groups");
 }
 
 function leaveTrip() {
@@ -1758,8 +1834,44 @@ function renderInstallScreen() {
   if (isBrowser && window.location.pathname !== "/") window.history.replaceState(null, "", "/");
   $("#installBack").classList.remove("hidden");
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
-    ? "This page is set to the trip home. Tap Share in Safari, then Add to Home Screen."
+    ? "This page is set to the trip home. Safari requires Share, then Add to Home Screen."
     : "Use Add app when available, or install Trip Split from your browser menu.";
+}
+
+async function loadAdminTrips() {
+  const password = $("#adminPassword").value;
+  try {
+    const response = await api(`/api/admin/trips?password=${encodeURIComponent(password)}`);
+    $("#adminLogin").classList.add("hidden");
+    $("#adminPanel").classList.remove("hidden");
+    $("#adminTrips").innerHTML = response.trips.length
+      ? response.trips
+          .map(
+            (trip) => `
+              <article class="group-row">
+                <div>
+                  <div class="row-name">${escapeHtml(trip.name || "Trip")}</div>
+                  <div class="subtext">${escapeHtml(trip.status || "active")} · ${trip.peopleCount || 0} people · ${trip.receiptCount || 0} receipts</div>
+                </div>
+                <button class="small-primary danger-action" data-admin-delete="${trip.id}"><i data-lucide="trash-2"></i><span>Delete</span></button>
+              </article>
+            `
+          )
+          .join("")
+      : `<div class="empty">No trips found.</div>`;
+    $$("[data-admin-delete]").forEach((button) => {
+      button.addEventListener("click", () => deleteAdminTrip(button.dataset.adminDelete));
+    });
+    makeIcons();
+  } catch {
+    safeAlert("Wrong password or admin API unavailable.");
+  }
+}
+
+async function deleteAdminTrip(tripId) {
+  if (!safeConfirm("Delete this trip and all of its data?")) return;
+  await api(`/api/admin/trips/${tripId}`, { method: "DELETE", body: { password: $("#adminPassword").value } });
+  await loadAdminTrips();
 }
 
 function renderGroups() {
@@ -2078,7 +2190,7 @@ function renderExpenses() {
                   <button class="text-link row-name" data-edit-expense="${receipt.id}">${escapeHtml(receipt.name || "Receipt")}</button>
                   <div class="subtext">${new Date(receipt.date || receipt.createdAt).toLocaleDateString()}</div>
                 </div>
-                <div class="money">${formatNative(native, receipt.currency)}</div>
+                <div class="money">${money.format(toUsd(native, receipt.currency))}</div>
               </div>
               <details class="settled-archive">
                 <summary>${items.length} item${items.length === 1 ? "" : "s"}</summary>
@@ -2201,7 +2313,7 @@ async function promptInstall() {
     return;
   }
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
-    ? "Tap Share in Safari, then Add to Home Screen."
+    ? "Safari does not allow this button to open the install sheet. Tap Share, then Add to Home Screen."
     : "Open your browser menu and choose Install app or Add to Home Screen.";
 }
 

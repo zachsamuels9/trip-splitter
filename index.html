@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#09070e" />
+    <meta name="screen-orientation" content="portrait" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Trip Split" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -221,6 +222,10 @@
             <span>Notes</span>
             <input id="manualDescription" type="text" placeholder="Optional notes" />
           </label>
+          <label>
+            <span>Attachment</span>
+            <input id="manualAttachment" type="file" accept="image/*" />
+          </label>
         </section>
 
         <section class="panel">
@@ -388,7 +393,12 @@
             <h2>Select items</h2>
             <span id="itemCountLabel">0 items</span>
           </div>
+          <button class="small-primary full" id="claimRemaining"><i data-lucide="list-plus"></i><span>Select all remaining</span></button>
           <div id="itemsList" class="items-list"></div>
+          <details class="settled-archive hidden" id="coveredItemsPanel">
+            <summary>Already covered</summary>
+            <div id="coveredItemsList" class="items-list"></div>
+          </details>
           <button class="small-primary full" id="addParsedItem"><i data-lucide="plus"></i><span>Add item</span></button>
           <div id="feesList" class="fees-list"></div>
         </section>
@@ -564,8 +574,28 @@
           <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download receipt photos</span></button>
           <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
           <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
-          <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span>Close trip and settle</span></button>
+          <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
+          <button class="primary full danger-action hidden" id="deleteTrip"><i data-lucide="trash-2"></i><span>Delete trip</span></button>
           <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Clear this trip</span></button>
+        </section>
+      </section>
+      <section class="screen" id="screen-admin">
+        <header class="flow-header">
+          <h1>Admin</h1>
+        </header>
+        <section class="panel" id="adminLogin">
+          <label>
+            <span>Password</span>
+            <input id="adminPassword" type="password" inputmode="numeric" placeholder="1234" />
+          </label>
+          <button class="primary full" id="adminUnlock"><i data-lucide="lock-keyhole"></i><span>Open admin</span></button>
+        </section>
+        <section class="panel hidden" id="adminPanel">
+          <div class="section-title">
+            <h2>Active trips</h2>
+            <button class="small-primary" id="adminRefresh"><i data-lucide="refresh-cw"></i><span>Refresh</span></button>
+          </div>
+          <div id="adminTrips" class="groups-list"></div>
         </section>
       </section>
       <section class="image-viewer hidden" id="imageViewer" aria-modal="true">
