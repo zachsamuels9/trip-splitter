@@ -20,12 +20,14 @@
 
 html {
   min-height: 100%;
+  min-height: 100dvh;
   background: #09070e;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 50% 16%, rgba(129, 56, 244, 0.23), transparent 240px),
     linear-gradient(180deg, #09070e 0%, #09070e 62%, #0d1324 100%);
@@ -47,14 +49,15 @@ button {
 .shell {
   width: min(430px, 100%);
   min-height: 100vh;
+  min-height: 100dvh;
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
 }
 
 .screen {
   display: none;
-  min-height: calc(100vh - 36px);
-  padding-bottom: 124px;
+  min-height: calc(100dvh - 36px);
+  padding-bottom: 96px;
 }
 
 #screen-install {
@@ -725,13 +728,27 @@ textarea {
   overflow-wrap: anywhere;
 }
 
-.claim-qty {
-  width: 76px;
-  min-height: 42px;
-  border-radius: 10px;
-  padding: 0 10px;
-  font-size: 17px;
+.claim-stepper {
+  display: grid;
+  grid-template-columns: 38px 34px 38px;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #2b3655;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.claim-stepper button {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.claim-stepper strong {
   text-align: center;
+  color: #fff;
 }
 
 .chip input {

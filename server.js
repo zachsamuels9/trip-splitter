@@ -1,7 +1,21 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { addPerson, closeGroup, createGroup, deleteTrip, getRequiredGroup, listTrips, publicGroup, reopenGroup, upsertReceipt } = require("./lib/group-store");
+const {
+  addPerson,
+  closeGroup,
+  createGroup,
+  deleteTrip,
+  getRequiredGroup,
+  listTrips,
+  publicGroup,
+  reopenGroup,
+  resetTrip,
+  signInAccount,
+  updateAccount,
+  upsertReceipt,
+} = require("./lib/group-store");
+const { processReceiptImage } = require("./lib/receipt-ocr-service");
 
 const root = fs.existsSync(path.join(__dirname, "public")) ? path.join(__dirname, "public") : __dirname;
 const port = Number(process.env.PORT || 4173);
@@ -65,6 +79,22 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  if (req.method === "POST" && url.pathname === "/api/accounts") {
+    const result = await signInAccount(await readBody(req));
+    if (!result.account) {
+      sendJson(res, 401, { error: "No account matched that email and passcode." });
+      return;
+    }
+    sendJson(res, 200, result);
+    return;
+  }
+
+  const accountMatch = url.pathname.match(/^\/api\/accounts\/([^/]+)$/);
+  if (accountMatch && req.method === "PATCH") {
+    sendJson(res, 200, await updateAccount(accountMatch[1], await readBody(req)));
+    return;
+  }
+
   const adminDeleteMatch = url.pathname.match(/^\/api\/admin\/trips\/([^/]+)$/);
   if (adminDeleteMatch && req.method === "DELETE") {
     const body = await readBody(req);
@@ -77,31 +107,10 @@ async function handleApi(req, res, url) {
   }
 
   if (req.method === "POST" && url.pathname === "/api/ocr") {
-    const apiKey = process.env.OCR_SPACE_API_KEY;
-    if (!apiKey) {
-      sendJson(res, 503, { error: "OCR_SPACE_API_KEY is not configured." });
-      return;
-    }
     const body = await readRawBody(req);
-    const response = await fetch("https://api.ocr.space/parse/image", {
-      method: "POST",
-      headers: {
-        apikey: apiKey,
-        "content-type": req.headers["content-type"],
-      },
-      body,
-    });
-    if (!response.ok) {
-      sendJson(res, response.status, { error: "OCR provider request failed." });
-      return;
-    }
-    const data = await response.json();
-    if (data.IsErroredOnProcessing) {
-      sendJson(res, 422, { error: data.ErrorMessage || "OCR processing failed." });
-      return;
-    }
-    const text = data.ParsedResults?.map((result) => result.ParsedText).filter(Boolean).join("\n").trim();
-    sendJson(res, 200, { text });
+    const payload = JSON.parse(body.toString("utf8") || "{}");
+    const result = await processReceiptImage({ imageDataUrl: payload.imageDataUrl || "" });
+    sendJson(res, 200, result);
     return;
   }
 
@@ -112,7 +121,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen))?$/);
+  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen|reset))?$/);
   if (!groupMatch) {
     sendJson(res, 404, { error: "Not found" });
     return;
@@ -126,7 +135,7 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && groupMatch[2] === "people") {
     const body = await readBody(req);
-    const result = await addPerson(groupMatch[1], body.name);
+    const result = await addPerson(groupMatch[1], body.name, body);
     sendJson(res, 201, result);
     return;
   }
@@ -146,6 +155,12 @@ async function handleApi(req, res, url) {
 
   if (req.method === "POST" && groupMatch[2] === "reopen") {
     const result = await reopenGroup(groupMatch[1]);
+    sendJson(res, 200, result);
+    return;
+  }
+
+  if (req.method === "POST" && groupMatch[2] === "reset") {
+    const result = await resetTrip(groupMatch[1]);
     sendJson(res, 200, result);
     return;
   }
@@ -180,7 +195,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname.startsWith("/api/")) await handleApi(req, res, url);
     else serveStatic(req, res, url);
   } catch (error) {
-    sendJson(res, 500, { error: error.message || "Server error" });
+    sendJson(res, error.statusCode || 500, { error: error.message || "Server error" });
   }
 });
 

@@ -1,7 +1,18 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const jsFiles = ["client.js", "server.js", "api/groups.js", "api/groups/[...path].js", "api/ocr.js", "lib/group-store.js", "sw.js"];
+const jsFiles = [
+  "client.js",
+  "server.js",
+  "api/groups.js",
+  "api/groups/[...path].js",
+  "api/accounts.js",
+  "api/accounts/[id].js",
+  "api/ocr.js",
+  "lib/group-store.js",
+  "lib/receipt-ocr-service.js",
+  "sw.js",
+];
 
 for (const file of jsFiles) {
   execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });

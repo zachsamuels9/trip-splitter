@@ -15,7 +15,6 @@
     <link rel="icon" href="/favicon.ico" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
-    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
     <script src="/client.js" defer></script>
   </head>
   <body>
@@ -36,8 +35,36 @@
               <span>Your name</span>
               <input id="startOwnerName" type="text" placeholder="Your name" aria-label="Your name" required />
             </label>
+            <label>
+              <span>Email</span>
+              <input id="startOwnerEmail" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email" required />
+            </label>
+            <label>
+              <span>4-digit passcode</span>
+              <input id="startOwnerPasscode" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="1234" aria-label="4-digit passcode" required />
+            </label>
             <button class="primary full" id="startCreateGroup"><i data-lucide="link"></i><span>Create invite link</span></button>
           </div>
+        </section>
+      </section>
+
+      <section class="screen" id="screen-account">
+        <header class="flow-header">
+          <h1>Sign in</h1>
+        </header>
+        <section class="panel">
+          <h2>Your trips</h2>
+          <p class="subtext">Use the email and 4-digit passcode you created for Trip Split.</p>
+          <label>
+            <span>Email</span>
+            <input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com" />
+          </label>
+          <label>
+            <span>4-digit passcode</span>
+            <input id="accountPasscode" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="1234" />
+          </label>
+          <button class="primary full" id="accountSignIn"><i data-lucide="log-in"></i><span>Sign in</span></button>
+          <button class="primary full secondary-action" id="accountStart"><i data-lucide="plus"></i><span>Create new trip</span></button>
         </section>
       </section>
 
@@ -89,6 +116,8 @@
           <div id="groupSignedOut" class="group-actions">
             <input id="groupName" type="text" placeholder="Weekend trip" aria-label="Group name" required />
             <input id="ownerName" type="text" placeholder="Your name" aria-label="Your name" required />
+            <input id="ownerEmail" type="email" autocomplete="email" placeholder="Email" aria-label="Email" required />
+            <input id="ownerPasscode" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="4-digit passcode" aria-label="4-digit passcode" required />
             <button class="primary full" id="createGroup"><i data-lucide="link"></i><span>Create invite link</span></button>
           </div>
           <div id="groupSignedIn" class="hidden">
@@ -143,11 +172,19 @@
         </section>
         <section class="panel">
           <h2>Create your account</h2>
-          <p class="subtext">Enter your name once. This device will remember you for this trip.</p>
+          <p class="subtext">Create a simple account so you can use this trip from any device.</p>
           <form id="joinGroupForm">
             <label>
               <span>Your name</span>
               <input id="joinName" type="text" autocomplete="name" placeholder="Your name" required />
+            </label>
+            <label>
+              <span>Email</span>
+              <input id="joinEmail" type="email" autocomplete="email" placeholder="you@example.com" required />
+            </label>
+            <label>
+              <span>4-digit passcode</span>
+              <input id="joinPasscode" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="1234" required />
             </label>
             <button class="primary full"><i data-lucide="user-plus"></i><span>Join trip</span></button>
           </form>
@@ -371,6 +408,10 @@
             <span>Notes</span>
             <textarea id="reviewNotes" placeholder="Optional notes"></textarea>
           </label>
+          <label>
+            <span>Attachment</span>
+            <input id="reviewAttachment" type="file" accept="image/*" />
+          </label>
         </details>
 
         <section class="split-methods">
@@ -568,6 +609,24 @@
           <h1>Settings</h1>
         </header>
         <section class="panel">
+          <div class="section-title">
+            <h2>Account</h2>
+            <span id="accountSettingsStatus">Signed in</span>
+          </div>
+          <label>
+            <span>Name</span>
+            <input id="settingsName" type="text" autocomplete="name" />
+          </label>
+          <label>
+            <span>Email</span>
+            <input id="settingsEmail" type="email" autocomplete="email" />
+          </label>
+          <label>
+            <span>New 4-digit passcode</span>
+            <input id="settingsPasscode" type="password" inputmode="numeric" maxlength="4" pattern="[0-9]{4}" placeholder="Leave blank to keep current" />
+          </label>
+          <button class="primary full secondary-action" id="saveAccount"><i data-lucide="save"></i><span>Save account</span></button>
+          <button class="primary full secondary-action" id="signOut"><i data-lucide="log-out"></i><span>Sign out</span></button>
           <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite</span></button>
           <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
           <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
@@ -576,7 +635,7 @@
           <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
           <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
           <button class="primary full danger-action hidden" id="deleteTrip"><i data-lucide="trash-2"></i><span>Delete trip</span></button>
-          <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Clear this trip</span></button>
+          <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Reset trip</span></button>
         </section>
       </section>
       <section class="screen" id="screen-admin">

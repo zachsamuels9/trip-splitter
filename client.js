@@ -1,6 +1,7 @@
 const storeKey = "trip-split-state-v2";
 const rateKey = "trip-split-rates-v1";
 const groupsKey = "trip-split-known-groups-v1";
+const accountEmailKey = "trip-split-account-email";
 const supportedCurrencies = ["USD", "THB", "VND"];
 const defaultRates = { USD: 1, THB: 36.7, VND: 25400 };
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
@@ -59,7 +60,7 @@ if (isBrowser) {
       showStartOnboarding();
     } else if (!activeGroupId || activePersonId) {
       if (activeGroupId && activePersonId) setAppGroupUrl();
-      showScreen(activeGroupId ? "home" : "groups");
+      showScreen(activeGroupId ? "home" : "account");
     }
   });
 }
@@ -211,6 +212,14 @@ function safeConfirm(message) {
   return window.confirm(message);
 }
 
+function cleanEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function isValidPasscode(value) {
+  return /^\d{4}$/.test(String(value || ""));
+}
+
 function createId() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `id-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -227,20 +236,7 @@ function bindEvents() {
   });
 
   $("#resetApp").addEventListener("click", () => {
-    if (!safeConfirm("Reset people, receipts, and balances?")) return;
-    removeStorage(storeKey);
-    if (activeGroupId) {
-      removeStorage("trip-split-group-id");
-      removeStorage(`trip-split-person-${activeGroupId}`);
-    }
-    state = loadState();
-    parsedReceipt = null;
-    activeGroupId = "";
-    activePersonId = "";
-    activeGroup = null;
-    splitMode = "items";
-    render();
-    showScreen("home");
+    resetTripExpenses();
   });
   $("#newGroup").addEventListener("click", () => {
     activeGroupId = "";
@@ -251,6 +247,16 @@ function bindEvents() {
     if (isBrowser) window.history.pushState(null, "", "/start");
     showStartOnboarding("groups");
   });
+  $("#accountStart").addEventListener("click", () => {
+    activeGroupId = "";
+    activePersonId = "";
+    activeGroup = null;
+    state = defaultState();
+    render();
+    if (isBrowser) window.history.pushState(null, "", "/start");
+    showStartOnboarding();
+  });
+  $("#accountSignIn").addEventListener("click", signInAccount);
   $("#startBack").addEventListener("click", () => showScreen("groups"));
   $("#installNative").addEventListener("click", promptInstall);
   $("#installHome").addEventListener("click", () => showScreen("home"));
@@ -267,6 +273,8 @@ function bindEvents() {
   $("#inviteHome").addEventListener("click", () => showScreen("home"));
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
   $("#leaveTrip").addEventListener("click", leaveTrip);
+  $("#signOut").addEventListener("click", signOutAccount);
+  $("#saveAccount").addEventListener("click", saveAccountSettings);
   $("#loggedInBox").addEventListener("click", leaveTrip);
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
   $("#receiptSort").addEventListener("change", renderHistory);
@@ -302,6 +310,7 @@ function bindEvents() {
   $("#receiptImage").addEventListener("change", scanImage);
   $("#receiptUpload").addEventListener("change", scanImage);
   $("#manualAttachment").addEventListener("change", storeManualAttachment);
+  $("#reviewAttachment").addEventListener("change", storeReviewAttachment);
   $("#addManualItem").addEventListener("click", () => addManualItem());
   $("#claimRemaining").addEventListener("click", claimAllRemaining);
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
@@ -419,32 +428,45 @@ async function initGroup() {
 }
 
 async function createStartGroup() {
-  await createGroupFromValues($("#startGroupName").value, $("#startOwnerName").value, "invite");
+  await createGroupFromValues($("#startGroupName").value, $("#startOwnerName").value, "invite", {
+    email: $("#startOwnerEmail").value,
+    passcode: $("#startOwnerPasscode").value,
+  });
 }
 
 async function createGroup() {
-  await createGroupFromValues($("#groupName").value, $("#ownerName").value, "install");
+  await createGroupFromValues($("#groupName").value, $("#ownerName").value, "install", {
+    email: $("#ownerEmail").value,
+    passcode: $("#ownerPasscode").value,
+  });
 }
 
-async function createGroupFromValues(rawName, rawPersonName, nextScreen) {
+async function createGroupFromValues(rawName, rawPersonName, nextScreen, account = {}) {
   const name = String(rawName || "").trim() || "Trip group";
   const personName = String(rawPersonName || "").trim();
+  const email = cleanEmail(account.email);
+  const passcode = String(account.passcode || "").trim();
   if (!personName) {
     safeAlert("Enter your name to create the trip.");
     const field = nextScreen === "invite" ? $("#startOwnerName") : $("#ownerName");
     field?.focus();
     return;
   }
+  if (!email || !isValidPasscode(passcode)) {
+    safeAlert("Enter your email and a 4-digit passcode.");
+    return;
+  }
   try {
     const result = await api("/api/groups", {
       method: "POST",
-      body: { name, personName },
+      body: { name, personName, personEmail: email, passcode },
     });
     activeGroupId = result.group.id;
     activePersonId = result.person.id;
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     writeStorage(`trip-split-owner-${activeGroupId}`, activePersonId);
+    writeStorage(accountEmailKey, email);
     setAppGroupUrl();
     applyGroup(result.group);
     rememberGroup(result.group, activePersonId);
@@ -465,15 +487,22 @@ async function createGroupFromValues(rawName, rawPersonName, nextScreen) {
 async function joinGroup(event) {
   event.preventDefault();
   const name = $("#joinName").value.trim();
+  const email = cleanEmail($("#joinEmail").value);
+  const passcode = $("#joinPasscode").value.trim();
   if (!name || !activeGroupId) return;
+  if (!email || !isValidPasscode(passcode)) {
+    safeAlert("Enter your email and a 4-digit passcode.");
+    return;
+  }
   try {
     const result = await api(`/api/groups/${activeGroupId}/people`, {
       method: "POST",
-      body: { name },
+      body: { name, email, passcode },
     });
     activePersonId = result.person.id;
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+    writeStorage(accountEmailKey, email);
     applyGroup(result.group);
     rememberGroup(result.group, activePersonId);
     startSync();
@@ -575,6 +604,71 @@ async function api(path, options = {}) {
   return response.json();
 }
 
+async function signInAccount() {
+  const email = cleanEmail($("#accountEmail").value);
+  const passcode = $("#accountPasscode").value.trim();
+  if (!email || !isValidPasscode(passcode)) {
+    safeAlert("Enter your email and 4-digit passcode.");
+    return;
+  }
+  try {
+    const result = await api("/api/accounts", {
+      method: "POST",
+      body: { email, passcode },
+    });
+    writeStorage(accountEmailKey, email);
+    saveKnownGroups(
+      (result.trips || []).map((trip) => ({
+        id: trip.id,
+        name: trip.name,
+        personId: trip.personId,
+        updatedAt: trip.updatedAt || new Date().toISOString(),
+      }))
+    );
+    const firstTrip = result.trips?.[0];
+    if (!firstTrip) {
+      safeAlert("No trips found for that account.");
+      return;
+    }
+    activeGroupId = firstTrip.id;
+    activePersonId = firstTrip.personId;
+    writeStorage("trip-split-group-id", activeGroupId);
+    writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+    await initGroup();
+    render();
+    setAppGroupUrl();
+    showScreen("home");
+  } catch (error) {
+    safeAlert(error.message || "Could not sign in.");
+  }
+}
+
+async function saveAccountSettings() {
+  if (!activePersonId) return;
+  const email = cleanEmail($("#settingsEmail").value);
+  const passcode = $("#settingsPasscode").value.trim();
+  if (passcode && !isValidPasscode(passcode)) {
+    safeAlert("Passcode must be exactly 4 digits.");
+    return;
+  }
+  try {
+    await api(`/api/accounts/${activePersonId}`, {
+      method: "PATCH",
+      body: {
+        name: $("#settingsName").value.trim(),
+        email,
+        passcode,
+      },
+    });
+    if (email) writeStorage(accountEmailKey, email);
+    $("#settingsPasscode").value = "";
+    $("#accountSettingsStatus").textContent = "Saved";
+    await syncGroup();
+  } catch (error) {
+    safeAlert(error.message || "Could not save account.");
+  }
+}
+
 function inviteUrl() {
   if (!isBrowser) return "";
   const url = new URL(window.location.href);
@@ -594,20 +688,13 @@ async function scanImage(event) {
     const originalImageDataUrl = await fileToDataUrl(file);
     const imageDataUrl = await optimizeImageDataUrl(originalImageDataUrl);
     const ocr = await readReceiptText(imageDataUrl);
-    const text = ocr.text;
-    const detectedCurrency = detectCurrency(text, $("#receiptCurrency").value);
+    const text = ocr.text || "";
+    const detectedCurrency = ocr.receipt?.currency || detectCurrency(text, $("#receiptCurrency").value);
     $("#receiptCurrency").value = detectedCurrency;
-    const restaurantName = detectRestaurantName(text);
-    parsedReceipt = parseReceipt(text, detectedCurrency, {
-      name: restaurantName || "Scanned receipt",
-      restaurantName,
-      date: detectReceiptDate(text) || new Date().toISOString().slice(0, 10),
-      source: "scan",
-      imageDataUrl,
-    });
+    parsedReceipt = receiptFromOcrResult(ocr, imageDataUrl, detectedCurrency);
     parsedReceipt.ocrText = text;
     if (!parsedReceipt.items.length) {
-      updateScanProgress("Needs review", "No priced items were found. Add them manually below.", false);
+      updateScanProgress("Needs review", "Document AI did not return priced items. Add them manually below.", false);
       showScreen("itemize");
       renderAssignment();
       return;
@@ -627,12 +714,7 @@ async function scanImage(event) {
 
 async function readReceiptText(imageDataUrl) {
   updateScanProgress("Reading receipt", "Using server receipt OCR...", true);
-  try {
-    return await readWithRemoteOcr(imageDataUrl);
-  } catch (error) {
-    if (!/not configured|OCR is not configured/i.test(error.message || "")) throw error;
-    return readWithBrowserOcr(imageDataUrl);
-  }
+  return readWithRemoteOcr(imageDataUrl);
 }
 
 function updateScanProgress(title, text, loading) {
@@ -662,23 +744,8 @@ async function readWithRemoteOcr(imageDataUrl) {
     throw new Error(detail.error || "Server OCR failed. Check OCR configuration.");
   }
   const data = await response.json();
-  if (!data.text) throw new Error("No OCR text");
-  return { provider: data.provider || "receipt OCR", text: data.text };
-}
-
-async function readWithBrowserOcr(imageDataUrl) {
-  if (!window.Tesseract?.recognize) {
-    throw new Error("OCR is not configured. Add a server OCR provider key in Vercel.");
-  }
-  updateScanProgress("Reading receipt", "Using on-device OCR because server OCR is not configured...", true);
-  const result = await window.Tesseract.recognize(imageDataUrl, "eng", {
-    logger: (message) => {
-      if (message.status === "recognizing text") {
-        updateScanProgress("Reading receipt", `On-device OCR ${Math.round((message.progress || 0) * 100)}%`, true);
-      }
-    },
-  });
-  return { provider: "On-device OCR", text: result?.data?.text || "" };
+  if (!data.receipt && !data.text) throw new Error("No receipt data");
+  return { provider: data.provider || "receipt OCR", text: data.text || "", receipt: data.receipt || null, cached: Boolean(data.cached) };
 }
 
 function optimizeImageDataUrl(imageDataUrl) {
@@ -716,6 +783,62 @@ function prepareScanReceipt() {
     imageDataUrl: "",
   };
   renderAssignment();
+}
+
+function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
+  const structured = ocr.receipt || {};
+  const text = ocr.text || "";
+  const fallbackName = structured.merchant || detectRestaurantName(text) || "Scanned receipt";
+  const fallback = parseReceipt(text, structured.currency || fallbackCurrency || "USD", {
+    name: fallbackName,
+    restaurantName: structured.merchant || "",
+    date: structured.date || detectReceiptDate(text) || new Date().toISOString().slice(0, 10),
+    source: "scan",
+    imageDataUrl,
+  });
+  const items = (structured.lineItems || [])
+    .filter((item) => Number(item.amount || item.unitPrice || 0) > 0)
+    .map((item) => {
+      const quantity = Math.max(1, Math.round(Number(item.quantity || 1)));
+      const amount = roundCents(Number(item.amount || Number(item.unitPrice || 0) * quantity));
+      return {
+        id: createId(),
+        name: toTitle(item.normalizedName || item.name || "Item"),
+        originalName: item.name || "",
+        category: item.category || "",
+        amount,
+        quantity,
+        unitPrice: roundCents(Number(item.unitPrice || amount / quantity)),
+        assignedTo: [],
+        claims: {},
+      };
+    });
+  const fees = [];
+  if (Number(structured.tip || 0) > 0) fees.push({ id: createId(), name: "Tip", amount: roundCents(structured.tip) });
+  if (Number(structured.tax || 0) > 0) fees.push({ id: createId(), name: "Tax", amount: roundCents(structured.tax) });
+  if (Number(structured.fees || 0) > 0) fees.push({ id: createId(), name: "Fees", amount: roundCents(structured.fees) });
+  const discount = roundCents(structured.discount || 0);
+  const receipt = {
+    ...fallback,
+    currency: structured.currency || fallback.currency,
+    name: fallbackName,
+    restaurantName: structured.merchant || fallback.restaurantName || "",
+    date: structured.date || fallback.date,
+    source: "scan",
+    imageDataUrl,
+    items: items.length ? items : fallback.items,
+    fees: fees.length ? fees : fallback.fees,
+    discount,
+    ocrProvider: ocr.provider,
+    ocrWarnings: structured.warnings || [],
+  };
+  const subtotal = sum(receipt.items.map((item) => item.amount));
+  const knownTotal = Number(structured.total || 0);
+  const calculated = subtotal + sum(receipt.fees.map((fee) => fee.amount)) - receipt.discount;
+  if (knownTotal > calculated + 0.02 && receipt.items.length) {
+    receipt.fees.push({ id: createId(), name: "Unitemized amount", amount: roundCents(knownTotal - calculated) });
+  }
+  return receipt;
 }
 
 function parseReceipt(text, currency, meta = {}) {
@@ -953,6 +1076,14 @@ async function storeManualAttachment(event) {
   manualAttachmentDataUrl = file ? await fileToDataUrl(file) : "";
 }
 
+async function storeReviewAttachment(event) {
+  if (!parsedReceipt) return;
+  const file = event.target.files?.[0];
+  if (!file) return;
+  parsedReceipt.imageDataUrl = await fileToDataUrl(file);
+  renderAssignment();
+}
+
 function addManualItem(name = "", qty = 1, price = "") {
   const id = createId();
   const row = browserDocument.createElement("article");
@@ -1135,7 +1266,15 @@ function renderAssignment() {
                       <label class="chip">
                         <input type="checkbox" data-item="${item.id}" data-person="${person.id}" ${item.assignedTo?.includes(person.id) ? "checked" : ""}>
                         <span>${escapeHtml(person.name)}</span>
-                        ${quantity > 1 ? `<input class="claim-qty" data-claim-qty="${item.id}" data-person="${person.id}" type="number" min="0" max="${quantity}" step="1" inputmode="numeric" value="${escapeHtml(itemClaimQuantity(item, person.id) || "")}" aria-label="${escapeHtml(person.name)} quantity" />` : ""}
+                        ${
+                          quantity > 1
+                            ? `<div class="claim-stepper" aria-label="${escapeHtml(person.name)} quantity">
+                                <button type="button" data-claim-adjust="${item.id}" data-person="${person.id}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)} for ${escapeHtml(person.name)}"><i data-lucide="minus"></i></button>
+                                <strong data-claim-count="${item.id}" data-person="${person.id}">${itemClaimQuantity(item, person.id) || 0}</strong>
+                                <button type="button" data-claim-adjust="${item.id}" data-person="${person.id}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)} for ${escapeHtml(person.name)}"><i data-lucide="plus"></i></button>
+                              </div>`
+                            : ""
+                        }
                       </label>
                     `
                   )
@@ -1151,7 +1290,7 @@ function renderAssignment() {
   renderFeesList();
 
   $$("[data-item]").forEach((box) => {
-    box.addEventListener("change", updateSelectionBar);
+    box.addEventListener("change", () => updateItemPersonSelection(box));
   });
   $$("[data-delete-item]").forEach((button) => {
     button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
@@ -1165,12 +1304,8 @@ function renderAssignment() {
   $$("[data-edit-item-qty]").forEach((input) => {
     input.addEventListener("change", () => updateParsedItem(input.dataset.editItemQty));
   });
-  $$("[data-claim-qty]").forEach((input) => {
-    input.addEventListener("input", () => {
-      const box = $(`input[data-item="${input.dataset.claimQty}"][data-person="${input.dataset.person}"]`);
-      if (box && Number(input.value || 0) > 0) box.checked = true;
-      updateSelectionBar();
-    });
+  $$("[data-claim-adjust]").forEach((button) => {
+    button.addEventListener("click", () => adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0)));
   });
   makeIcons();
   updateSelectionBar();
@@ -1400,24 +1535,50 @@ function collectAssignmentChoices() {
     const quantity = itemQuantity(item);
     const checkedPeople = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person);
     if (quantity > 1) {
-      let remaining = quantity;
       const claims = {};
       checkedPeople.forEach((personId) => {
-        const input = $(`[data-claim-qty="${item.id}"][data-person="${personId}"]`);
-        const requested = Math.max(0, Math.floor(Number(input?.value || 1)));
-        const claim = Math.min(remaining, requested || 1);
-        if (claim > 0) {
-          claims[personId] = claim;
-          remaining -= claim;
-        }
+        const claim = Math.max(0, Math.floor(Number(item.claims?.[personId] || 0)));
+        if (claim > 0) claims[personId] = claim;
       });
-      item.claims = claims;
+      item.claims = clampClaims({ ...item, claims });
       item.assignedTo = Object.keys(claims);
     } else {
       item.assignedTo = checkedPeople;
       item.claims = {};
     }
   });
+}
+
+function updateItemPersonSelection(box) {
+  if (!parsedReceipt) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === box.dataset.item);
+  if (!item) return;
+  if (itemQuantity(item) > 1) {
+    const claims = { ...(item.claims || {}) };
+    if (box.checked) {
+      if (!claims[box.dataset.person]) claims[box.dataset.person] = 1;
+    } else {
+      delete claims[box.dataset.person];
+    }
+    item.claims = clampClaims({ ...item, claims });
+    item.assignedTo = Object.keys(item.claims);
+    renderAssignment();
+    return;
+  }
+  updateSelectionBar();
+}
+
+function adjustItemClaim(itemId, personId, delta) {
+  if (!parsedReceipt) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+  const claims = { ...(item.claims || {}) };
+  const requested = Math.max(0, Number(claims[personId] || 0) + delta);
+  if (requested > 0) claims[personId] = requested;
+  else delete claims[personId];
+  item.claims = clampClaims({ ...item, claims });
+  item.assignedTo = Object.keys(item.claims);
+  renderAssignment();
 }
 
 function claimAllRemaining() {
@@ -1791,11 +1952,28 @@ function renderGroupUi() {
   $("#groupStatus").textContent = "Shared";
   $("#memberNameLabel").textContent = `Signed in as ${person?.name || "Guest"}`;
   $("#inviteLink").value = inviteUrl();
+  $("#settingsName").value = person?.name || "";
+  $("#settingsEmail").value = person?.email || readStorage(accountEmailKey) || "";
+  $("#accountSettingsStatus").textContent = person?.email || readStorage(accountEmailKey) ? "Signed in" : "Add email";
   $("#resetApp").classList.toggle("hidden", !isTripOwner());
   $("#leaveTrip").classList.toggle("hidden", isTripOwner());
   $("#closeTrip").classList.toggle("hidden", !isTripOwner());
   $("#deleteTrip").classList.toggle("hidden", !isTripOwner());
   $("#closeTripLabel").textContent = closed ? "Reopen trip" : "Close trip and settle";
+}
+
+async function resetTripExpenses() {
+  if (!activeGroupId || !isTripOwner()) return;
+  if (!safeConfirm("Reset this trip and clear all expenses for everyone?")) return;
+  if (!safeConfirm("Keep people, but delete all receipts, balances, and settlements?")) return;
+  try {
+    const result = await api(`/api/groups/${activeGroupId}/reset`, { method: "POST" });
+    applyGroup(result.group);
+  } catch (error) {
+    safeAlert(error.message || "Could not reset this trip.");
+  }
+  render();
+  showScreen("home");
 }
 
 function isTripClosed() {
@@ -1846,6 +2024,20 @@ function leaveTrip() {
   state = defaultState();
   render();
   showScreen("groups");
+}
+
+function signOutAccount() {
+  if (!safeConfirm("Sign out on this device?")) return;
+  if (activeGroupId) removeStorage(`trip-split-person-${activeGroupId}`);
+  removeStorage("trip-split-group-id");
+  removeStorage(accountEmailKey);
+  activePersonId = "";
+  activeGroupId = "";
+  activeGroup = null;
+  state = defaultState();
+  render();
+  if (isBrowser) window.history.replaceState(null, "", "/");
+  showScreen("account");
 }
 
 function renderInstallScreen() {
