@@ -868,6 +868,8 @@ textarea {
 .start-onboarding #screen-home .quick-nav,
 .start-onboarding #screen-home .action-panel,
 .start-onboarding #screen-home #pendingPanel,
+.start-onboarding #screen-home .login-banner,
+.start-onboarding #screen-home .home-header,
 .start-onboarding #screen-home .header-actions {
   display: none;
 }

@@ -35,6 +35,15 @@ if (isBrowser) {
     seedManualRows();
     registerServiceWorker();
     refreshRates();
+    if (isStartRoute() && !startInviteGroupId()) {
+      activeGroupId = "";
+      activePersonId = "";
+      activeGroup = null;
+      state = defaultState();
+      render();
+      showStartOnboarding();
+      return;
+    }
     await initGroup();
     render();
     if (isStartRoute() && !activeGroupId) {
@@ -117,12 +126,20 @@ function currentGroupId() {
   const savedGroupId = readStorage("trip-split-group-id") || "";
   if (!isBrowser) return savedGroupId;
   try {
-    const params = new URLSearchParams(window.location.search);
-    const invitedGroupId = params.get("group") || "";
+    const invitedGroupId = startInviteGroupId();
     if (invitedGroupId) return invitedGroupId;
     return isStartRoute() ? "" : savedGroupId;
   } catch {
     return savedGroupId;
+  }
+}
+
+function startInviteGroupId() {
+  if (!isBrowser) return "";
+  try {
+    return new URLSearchParams(window.location.search).get("group") || "";
+  } catch {
+    return "";
   }
 }
 
