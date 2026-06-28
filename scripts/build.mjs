@@ -18,6 +18,10 @@ if (!html.includes('type="file" accept="image/*" capture="environment"')) {
   throw new Error("Receipt upload input must be iPhone camera friendly.");
 }
 
+if (!html.includes('href="/styles.css"') || !html.includes('src="/client.js"')) {
+  throw new Error("Static CSS and client script must use root-absolute URLs.");
+}
+
 if (!html.includes("apple-mobile-web-app-capable") || !app.includes("serviceWorker")) {
   throw new Error("PWA mobile Safari basics are missing.");
 }

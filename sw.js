@@ -1,4 +1,4 @@
-const cacheName = "trip-split-v1";
+const cacheName = "trip-split-v2";
 const appShell = ["/", "/index.html", "/styles.css", "/client.js", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -16,5 +16,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.pathname.startsWith("/api/") || event.request.method !== "GET") return;
+  if (event.request.mode === "navigate" || ["style", "script"].includes(event.request.destination)) {
+    event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+    return;
+  }
   event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request)));
 });
