@@ -147,6 +147,10 @@ function bindEvents() {
     setTodayIfBlank();
     showScreen("manual");
   });
+  $("#openScan").addEventListener("click", () => {
+    resetScanStatus();
+    showScreen("scan");
+  });
 
   $("#personForm").addEventListener("submit", (event) => {
     event.preventDefault();
@@ -162,10 +166,17 @@ function bindEvents() {
   $("#joinGroupForm").addEventListener("submit", joinGroup);
 
   $("#receiptImage").addEventListener("change", scanImage);
+  $("#receiptUpload").addEventListener("change", scanImage);
   $("#addManualItem").addEventListener("click", () => addManualItem());
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
   $("#addParsedItem").addEventListener("click", addParsedItem);
-  $("#saveReceipt").addEventListener("click", saveReceipt);
+  $("#saveReceipt").addEventListener("click", () => saveReceipt(false));
+  $("#saveLaterReceipt").addEventListener("click", () => saveReceipt(true));
+  $("#confirmationHome").addEventListener("click", () => showScreen("home"));
+  $("#confirmationAddAnother").addEventListener("click", () => {
+    resetScanStatus();
+    showScreen("scan");
+  });
   $("#decreaseSplit").addEventListener("click", () => updateSplitCount(splitCount - 1));
   $("#increaseSplit").addEventListener("click", () => updateSplitCount(splitCount + 1));
 
@@ -176,6 +187,8 @@ function bindEvents() {
   ["reviewName", "reviewDate", "reviewLocation"].forEach((id) => {
     $(`#${id}`).addEventListener("input", updateParsedDetails);
   });
+  $("#reviewCurrency").addEventListener("change", updateParsedCurrency);
+  $("#reviewPaidBy").addEventListener("change", () => {});
 
   ["reviewTip", "reviewTax", "reviewFees", "reviewDiscount"].forEach((id) => {
     $(`#${id}`).addEventListener("input", updateParsedAdjustments);
@@ -370,31 +383,36 @@ async function scanImage(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   prepareScanReceipt();
-  showScreen("itemize");
-  $("#scanStatus").textContent = "Reading receipt with receipt OCR...";
+  showScreen("scan");
+  updateScanProgress("Reading receipt", "Uploading photo for OCR...", true);
 
   try {
     const imageDataUrl = await fileToDataUrl(file);
     const text = await readReceiptText(file);
+    const detectedCurrency = detectCurrency(text, $("#receiptCurrency").value);
+    $("#receiptCurrency").value = detectedCurrency;
     const restaurantName = detectRestaurantName(text);
-    parsedReceipt = parseReceipt(text, $("#receiptCurrency").value, {
+    parsedReceipt = parseReceipt(text, detectedCurrency, {
       name: restaurantName || "Scanned receipt",
       restaurantName,
       date: new Date().toISOString().slice(0, 10),
       source: "scan",
       imageDataUrl,
     });
+    parsedReceipt.ocrText = text;
     if (!parsedReceipt.items.length) {
-      $("#scanStatus").textContent = "No priced food items found. Try manual entry.";
+      updateScanProgress("Needs review", "No priced items were found. Add them manually below.", false);
+      showScreen("itemize");
       renderAssignment();
       return;
     }
     splitMode = "items";
     setSplitMode("items");
-    $("#scanStatus").textContent = `${parsedReceipt.items.length} items found`;
+    updateScanProgress("Items found", `${parsedReceipt.items.length} items found in ${detectedCurrency}.`, false);
+    showScreen("itemize");
     renderAssignment();
   } catch {
-    $("#scanStatus").textContent = "Could not read that photo. Use manual entry.";
+    updateScanProgress("Scan failed", "Could not read that photo. Try a brighter image or use manual entry.", false);
   } finally {
     event.target.value = "";
   }
@@ -402,14 +420,15 @@ async function scanImage(event) {
 
 async function readReceiptText(file) {
   try {
+    updateScanProgress("Reading receipt", "Using receipt OCR...", true);
     return await readWithRemoteOcr(file);
   } catch {
     if (!isBrowser || !window.Tesseract) throw new Error("No OCR available");
-    $("#scanStatus").textContent = "Receipt OCR unavailable. Trying backup scanner...";
+    updateScanProgress("Reading receipt", "Receipt OCR unavailable. Trying backup scanner...", true);
     const result = await window.Tesseract.recognize(file, "eng", {
       logger: (message) => {
         if (message.status === "recognizing text") {
-          $("#scanStatus").textContent = `Backup scanner... ${Math.round(message.progress * 100)}%`;
+          updateScanProgress("Reading receipt", `Backup scanner... ${Math.round(message.progress * 100)}%`, true);
         }
       },
     });
@@ -417,9 +436,30 @@ async function readReceiptText(file) {
   }
 }
 
+function updateScanProgress(title, text, loading) {
+  $("#scanModeLabel").textContent = loading ? "Scanning" : title;
+  $("#scanProgress").classList.remove("hidden");
+  $("#scanProgressTitle").textContent = title;
+  $("#scanProgressText").textContent = text;
+  const scanStatus = $("#scanStatus");
+  if (scanStatus) scanStatus.textContent = text;
+}
+
+function resetScanStatus() {
+  $("#scanModeLabel").textContent = "Ready";
+  $("#scanProgress").classList.add("hidden");
+  $("#scanProgressTitle").textContent = "Reading receipt";
+  $("#scanProgressText").textContent = "Preparing image...";
+}
+
 async function readWithRemoteOcr(file) {
   const formData = new FormData();
   formData.append("file", file);
+  formData.append("language", "eng");
+  formData.append("isOverlayRequired", "false");
+  formData.append("scale", "true");
+  formData.append("detectOrientation", "true");
+  formData.append("isTable", "true");
 
   const response = await fetch("/api/ocr", {
     method: "POST",
@@ -494,6 +534,14 @@ function parseReceipt(text, currency, meta = {}) {
   };
 }
 
+function detectCurrency(text, fallback = "USD") {
+  const sample = text || "";
+  if (/[฿]|(?:\bTHB\b|\bBAHT\b)/i.test(sample)) return "THB";
+  if (/[₫]|(?:\bVND\b|\bDONG\b|\bVIETNAM\b|\bVNĐ\b)/i.test(sample)) return "VND";
+  if (/\$|\bUSD\b/i.test(sample)) return "USD";
+  return supportedCurrencies.includes(fallback) ? fallback : "USD";
+}
+
 function detectRestaurantName(text) {
   const lines = text
     .split(/\n+/)
@@ -519,8 +567,12 @@ function fileToDataUrl(file) {
 function normalizeReceiptLine(line) {
   return line
     .replace(/[|]/g, " ")
+    .replace(/[¢©]/g, "0")
+    .replace(/\bO(?=\d)/g, "0")
+    .replace(/(\d)O\b/g, (_, digit) => `${digit}0`)
     .replace(/(\d)\s+([.,])\s+(\d)/g, "$1$2$3")
     .replace(/([$,฿₫])\s+(\d)/g, "$1$2")
+    .replace(/(\d)\s+([.,])/g, "$1$2")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -567,6 +619,8 @@ function isUsefulReceiptLabel(label) {
 function cleanItemName(label) {
   return label
     .replace(/^\d+\s+/, "")
+    .replace(/\b\d+\s*[xX@]\s*\d+(?:[.,]\d{1,2})?\b/g, "")
+    .replace(/\b(?:ea|each)\b/gi, "")
     .replace(/\s+\.\s+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -707,6 +761,7 @@ function renderAssignment() {
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
   $("#splitCount").textContent = splitCount;
+  $("#saveLaterReceipt").classList.toggle("hidden", splitMode === "even");
 
   $("#itemsList").innerHTML = parsedReceipt.items.length
     ? parsedReceipt.items
@@ -780,6 +835,9 @@ function renderAssignment() {
 function syncReviewFields() {
   if (!parsedReceipt) return;
   setReviewValue("reviewName", parsedReceipt.name || "");
+  setReviewValue("reviewCurrency", parsedReceipt.currency || "USD");
+  if (parsedReceipt.paidBy) $("#reviewPaidBy").value = parsedReceipt.paidBy;
+  else if (activePersonId && state.people.some((person) => person.id === activePersonId)) $("#reviewPaidBy").value = activePersonId;
   setReviewValue("reviewDate", parsedReceipt.date || "");
   setReviewValue("reviewLocation", parsedReceipt.location || "");
   setReviewValue("reviewTip", adjustmentAmount("tip"));
@@ -823,6 +881,12 @@ function updateParsedDetails() {
   parsedReceipt.date = $("#reviewDate").value || new Date().toISOString().slice(0, 10);
   parsedReceipt.location = $("#reviewLocation").value.trim();
   $("#itemizeTitle").textContent = parsedReceipt.name;
+}
+
+function updateParsedCurrency() {
+  if (!parsedReceipt) return;
+  parsedReceipt.currency = $("#reviewCurrency").value;
+  renderAssignment();
 }
 
 function updateParsedAdjustments() {
@@ -901,15 +965,20 @@ function updateSplitCount(next) {
   renderAssignment();
 }
 
-function saveReceipt() {
+function saveReceipt(assignLater = false) {
   if (!parsedReceipt) return;
-  const paidBy = $("#paidBy").value;
+  const paidBy = $("#reviewPaidBy").value;
   if (!paidBy) {
     safeAlert("Add at least one person and choose who paid.");
     return;
   }
 
-  if (splitMode === "even") {
+  if (assignLater) {
+    parsedReceipt.items.forEach((item) => {
+      item.assignedTo = [];
+    });
+    parsedReceipt.splitEvenCount = null;
+  } else if (splitMode === "even") {
     parsedReceipt.items.forEach((item) => {
       item.assignedTo = state.people.map((person) => person.id);
     });
@@ -924,8 +993,8 @@ function saveReceipt() {
     }
   }
 
-  const shares = splitMode === "even" ? calculateEvenShares(parsedReceipt, splitCount) : calculateItemShares(parsedReceipt);
-  const totalNative = sum(Object.values(shares.native));
+  const savedSplitMode = assignLater ? "items" : splitMode;
+  const shares = assignLater ? withUsd(emptyPersonMap(), parsedReceipt.currency) : splitMode === "even" ? calculateEvenShares(parsedReceipt, splitCount) : calculateItemShares(parsedReceipt);
   const receipt = {
     id: editingReceiptId || createId(),
     createdAt: new Date().toISOString(),
@@ -937,14 +1006,15 @@ function saveReceipt() {
     restaurantName: parsedReceipt.restaurantName || "",
     imageDataUrl: parsedReceipt.imageDataUrl || "",
     paidBy,
-    splitMode,
-    splitCount,
+    splitMode: savedSplitMode,
+    splitCount: assignLater ? null : splitCount,
+    assignmentStatus: assignLater ? "pending" : "complete",
     items: parsedReceipt.items,
     fees: parsedReceipt.fees,
     discount: parsedReceipt.discount || 0,
     shares,
-    totalNative,
-    totalUsd: toUsd(totalNative, parsedReceipt.currency),
+    totalNative: receiptTotal(parsedReceipt),
+    totalUsd: toUsd(receiptTotal(parsedReceipt), parsedReceipt.currency),
     rateUsed: rates.rates[parsedReceipt.currency] || 1,
   };
 
@@ -958,7 +1028,7 @@ function saveReceipt() {
   saveState();
   saveGroupReceipt(receipt);
   render();
-  showScreen("totals");
+  showConfirmation(receipt, assignLater);
 }
 
 function calculateItemShares(receipt) {
@@ -1020,6 +1090,7 @@ function render() {
   renderGroupUi();
   renderPeopleOptions();
   renderPeople();
+  renderPendingReceipts();
   renderTotals();
   renderHistory();
   renderSettlements();
@@ -1045,8 +1116,13 @@ function renderGroupUi() {
 }
 
 function renderPeopleOptions() {
-  $("#paidBy").innerHTML = state.people.map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("");
-  if (activePersonId && state.people.some((person) => person.id === activePersonId)) $("#paidBy").value = activePersonId;
+  const options = state.people.map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("");
+  $("#paidBy").innerHTML = options;
+  $("#reviewPaidBy").innerHTML = options;
+  if (activePersonId && state.people.some((person) => person.id === activePersonId)) {
+    $("#paidBy").value = activePersonId;
+    $("#reviewPaidBy").value = activePersonId;
+  }
   splitCount = Math.max(1, Math.min(splitCount, state.people.length || 1));
 }
 
@@ -1120,15 +1196,16 @@ function renderHistory() {
               <div class="row-head">
                 <div>
                   <div class="row-name">${escapeHtml(receipt.name || "Receipt")}</div>
-                  <div class="subtext">${payer} paid · ${date} · ${receipt.splitMode === "even" ? "split evenly" : `${receipt.items.length} items`}</div>
+                  <div class="subtext">${payer} paid · ${date} · ${isPendingReceipt(receipt) ? "needs splitting" : receipt.splitMode === "even" ? "split evenly" : `${receipt.items.length} items`}</div>
                 </div>
                 <div class="money">${money.format(receipt.totalUsd)}</div>
               </div>
               <div class="subtext">Original ${formatNative(receipt.totalNative, receipt.currency)} · ${formatRate(receipt.currency, receipt.rateUsed)}</div>
+              ${receipt.imageDataUrl ? `<img class="receipt-image" src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" />` : ""}
               ${receipt.imageDataUrl ? `<a class="receipt-link" href="${receipt.imageDataUrl}" target="_blank" rel="noreferrer">View receipt image</a>` : ""}
               ${
                 receipt.splitMode === "items"
-                  ? `<button class="small-primary receipt-open" data-open-receipt="${receipt.id}"><i data-lucide="list-checks"></i><span>Claim items</span></button>`
+                  ? `<button class="small-primary receipt-open" data-open-receipt="${receipt.id}"><i data-lucide="list-checks"></i><span>${isPendingReceipt(receipt) ? "Split now" : "Edit items"}</span></button>`
                   : ""
               }
             </article>
@@ -1142,11 +1219,46 @@ function renderHistory() {
   });
 }
 
+function renderPendingReceipts() {
+  const pending = state.receipts.filter(isPendingReceipt);
+  $("#pendingPanel").classList.toggle("hidden", pending.length === 0);
+  $("#pendingCount").textContent = `${pending.length}`;
+  $("#pendingList").innerHTML = pending.length
+    ? pending
+        .map((receipt) => {
+          const payer = findPerson(receipt.paidBy)?.name || "Someone";
+          return `
+            <article class="pending-row">
+              <div>
+                <div class="row-name">${escapeHtml(receipt.name || "Receipt")}</div>
+                <div class="subtext">${payer} paid ${formatNative(receipt.totalNative, receipt.currency)} · ${unassignedItemCount(receipt)} items left</div>
+              </div>
+              <button class="small-primary" data-open-pending="${receipt.id}"><i data-lucide="list-checks"></i><span>Split</span></button>
+            </article>
+          `;
+        })
+        .join("")
+    : "";
+
+  $$("[data-open-pending]").forEach((button) => {
+    button.addEventListener("click", () => openReceiptForClaiming(button.dataset.openPending));
+  });
+}
+
+function isPendingReceipt(receipt) {
+  return unassignedItemCount(receipt) > 0;
+}
+
+function unassignedItemCount(receipt) {
+  return (receipt.items || []).filter((item) => !(item.assignedTo || []).length).length;
+}
+
 function openReceiptForClaiming(receiptId) {
   const receipt = state.receipts.find((item) => item.id === receiptId);
   if (!receipt) return;
   editingReceiptId = receipt.id;
   parsedReceipt = JSON.parse(JSON.stringify(receipt));
+  parsedReceipt.paidBy = receipt.paidBy;
   splitMode = "items";
   setSplitMode("items");
   renderAssignment();
@@ -1175,6 +1287,10 @@ function renderSettlements() {
 function renderSummary() {
   $("#tripTotal").textContent = money.format(sum(state.receipts.map((receipt) => receipt.totalUsd)));
   $("#receiptCount").textContent = `${state.receipts.length}`;
+  const personId = activePersonId || state.people[0]?.id;
+  const person = findPerson(personId);
+  const totals = personId ? personTotals(personId) : { owed: 0 };
+  $("#personalTotal").textContent = `${person?.name || "Your"} share ${money.format(totals.owed)}`;
 }
 
 function personTotals(personId) {
@@ -1182,6 +1298,7 @@ function personTotals(personId) {
   let paid = 0;
   let receiptCount = 0;
   state.receipts.forEach((receipt) => {
+    if (isPendingReceipt(receipt)) return;
     const share = receipt.shares.usd[personId] || 0;
     owed += share;
     if (share > 0) receiptCount += 1;
@@ -1224,6 +1341,13 @@ function calculateSettlements() {
     if (creditor.amount <= 0.005) creditorIndex += 1;
   }
   return settlements;
+}
+
+function showConfirmation(receipt, assignedLater) {
+  $("#confirmationKicker").textContent = assignedLater ? "Saved for splitting later" : "Saved to trip";
+  $("#confirmationTitle").textContent = receipt.name || "Receipt";
+  $("#confirmationDetail").textContent = `${formatNative(receipt.totalNative, receipt.currency)} logged${assignedLater ? " · pending item assignments" : ""}`;
+  showScreen("confirmation");
 }
 
 function findPerson(personId) {

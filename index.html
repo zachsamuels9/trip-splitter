@@ -34,6 +34,7 @@
           <div>
             <span>Trip total</span>
             <strong id="tripTotal">$0.00</strong>
+            <small id="personalTotal">Your share $0.00</small>
           </div>
           <div>
             <span>Receipts</span>
@@ -66,38 +67,30 @@
           <button data-screen="settle"><i data-lucide="hand-coins"></i><span>Settle</span></button>
         </nav>
 
-        <section class="panel">
+        <section class="panel action-panel">
           <div class="section-title">
-            <h2>New receipt</h2>
+            <h2>Add receipt</h2>
             <span id="rateStatus">Rates loading</span>
           </div>
-          <div class="field-grid">
-            <label>
-              <span>Currency</span>
-              <select id="receiptCurrency">
-                <option value="USD">USD</option>
-                <option value="THB">THB</option>
-                <option value="VND">VND</option>
-              </select>
-            </label>
-            <label>
-              <span>Paid by</span>
-              <select id="paidBy"></select>
-            </label>
+          <div class="home-actions">
+            <button class="big-action" id="openScan">
+              <i data-lucide="scan-line"></i>
+              <span>Scan receipt</span>
+            </button>
+            <button class="big-action secondary-action" id="openManual">
+              <i data-lucide="square-pen"></i>
+              <span>Manual entry</span>
+            </button>
           </div>
         </section>
 
-        <div class="bottom-actions">
-          <label class="big-action scan-action">
-            <i data-lucide="scan-line"></i>
-            <span>Scan</span>
-            <input id="receiptImage" type="file" accept="image/*" capture="environment" />
-          </label>
-          <button class="big-action" id="openManual">
-            <i data-lucide="square-pen"></i>
-            <span>Manual entry</span>
-          </button>
-        </div>
+        <section class="panel hidden" id="pendingPanel">
+          <div class="section-title">
+            <h2>Needs splitting</h2>
+            <span id="pendingCount">0</span>
+          </div>
+          <div id="pendingList" class="pending-list"></div>
+        </section>
       </section>
 
       <section class="screen" id="screen-join">
@@ -136,6 +129,20 @@
 
         <section class="panel">
           <h2>Receipt</h2>
+          <div class="field-grid two">
+            <label>
+              <span>Currency</span>
+              <select id="receiptCurrency">
+                <option value="USD">USD</option>
+                <option value="THB">THB</option>
+                <option value="VND">VND</option>
+              </select>
+            </label>
+            <label>
+              <span>Paid by</span>
+              <select id="paidBy"></select>
+            </label>
+          </div>
           <label>
             <span>Name</span>
             <input id="manualName" type="text" value="Dinner" />
@@ -187,6 +194,44 @@
         </section>
       </section>
 
+      <section class="screen" id="screen-scan">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Scan receipt</h1>
+        </header>
+
+        <section class="panel scan-panel">
+          <div class="section-title">
+            <h2>Receipt photo</h2>
+            <span id="scanModeLabel">Ready</span>
+          </div>
+          <div class="scan-drop">
+            <i data-lucide="receipt-text"></i>
+            <strong>Use a clear, flat photo</strong>
+            <p class="subtext">Good lighting and all four receipt edges improve OCR accuracy.</p>
+          </div>
+          <div class="scan-buttons">
+            <label class="big-action scan-action">
+              <i data-lucide="camera"></i>
+              <span>Use camera</span>
+              <input id="receiptImage" type="file" accept="image/*" capture="environment" />
+            </label>
+            <label class="big-action secondary-action scan-action">
+              <i data-lucide="image-up"></i>
+              <span>Upload photo</span>
+              <input id="receiptUpload" type="file" accept="image/*" />
+            </label>
+          </div>
+          <div class="scan-progress hidden" id="scanProgress">
+            <div class="spinner"></div>
+            <div>
+              <strong id="scanProgressTitle">Reading receipt</strong>
+              <p class="subtext" id="scanProgressText">Preparing image...</p>
+            </div>
+          </div>
+        </section>
+      </section>
+
       <section class="screen" id="screen-itemize">
         <header class="flow-header">
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
@@ -208,6 +253,20 @@
             <span>Name</span>
             <input id="reviewName" type="text" placeholder="Receipt name" />
           </label>
+          <div class="field-grid two">
+            <label>
+              <span>Currency</span>
+              <select id="reviewCurrency">
+                <option value="USD">USD</option>
+                <option value="THB">THB</option>
+                <option value="VND">VND</option>
+              </select>
+            </label>
+            <label>
+              <span>Paid by</span>
+              <select id="reviewPaidBy"></select>
+            </label>
+          </div>
           <div class="field-grid two">
             <label>
               <span>Date</span>
@@ -271,7 +330,25 @@
           <p class="subtext centered" id="splitEachLabel">$0.00 each</p>
         </section>
 
-        <button class="sticky-submit" id="saveReceipt"><span id="saveReceiptLabel">Add to trip</span></button>
+        <div class="sticky-actions">
+          <button class="secondary-submit" id="saveLaterReceipt"><span>Assign later</span></button>
+          <button class="sticky-submit" id="saveReceipt"><span id="saveReceiptLabel">Add to trip</span></button>
+        </div>
+      </section>
+
+      <section class="screen" id="screen-confirmation">
+        <header class="flow-header">
+          <h1>Receipt logged</h1>
+        </header>
+        <section class="receipt-card confirmation-card">
+          <p id="confirmationKicker">Saved to trip</p>
+          <strong id="confirmationTitle">Receipt</strong>
+          <span id="confirmationDetail">$0.00</span>
+        </section>
+        <section class="panel confirmation-actions">
+          <button class="primary full" id="confirmationHome"><i data-lucide="home"></i><span>Return home</span></button>
+          <button class="primary full secondary-action" id="confirmationAddAnother"><i data-lucide="plus"></i><span>Add another</span></button>
+        </section>
       </section>
 
       <section class="screen" id="screen-people">

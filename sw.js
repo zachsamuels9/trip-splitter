@@ -1,5 +1,5 @@
-const cacheName = "trip-split-v2";
-const appShell = ["/", "/index.html", "/styles.css", "/client.js", "/manifest.json", "/icon.svg"];
+const cacheName = "trip-split-v3";
+const appShell = ["/", "/index.html", "/styles.css", "/client.js", "/manifest.json", "/icon.svg", "/favicon.ico", "/favicon.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(appShell)));
@@ -8,9 +8,17 @@ self.addEventListener("install", (event) => {
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== cacheName).map((key) => caches.delete(key))))
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== cacheName).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+      .then(() => self.clients.matchAll({ type: "window" }))
+      .then((clients) => {
+        clients.forEach((client) => {
+          if (client.url) client.navigate(client.url);
+        });
+      })
   );
-  self.clients.claim();
 });
 
 self.addEventListener("fetch", (event) => {

@@ -152,6 +152,14 @@ h2 {
   font-size: 38px;
 }
 
+.hero-card small {
+  display: block;
+  margin-top: 10px;
+  color: var(--cyan);
+  font-size: 15px;
+  font-weight: 950;
+}
+
 .receipt-card {
   grid-template-columns: 1fr;
   margin-bottom: 20px;
@@ -229,20 +237,17 @@ select:focus {
   grid-template-columns: 1fr 1fr;
 }
 
-.bottom-actions {
-  position: fixed;
-  left: 50%;
-  bottom: max(16px, env(safe-area-inset-bottom));
-  z-index: 10;
-  width: min(398px, calc(100% - 32px));
-  transform: translateX(-50%);
+.home-actions,
+.scan-buttons,
+.sticky-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
 
 .big-action,
-.sticky-submit {
+.sticky-submit,
+.secondary-submit {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,6 +259,14 @@ select:focus {
   box-shadow: 0 16px 34px rgba(47, 208, 233, 0.18);
   font-size: 20px;
   font-weight: 1000;
+}
+
+.secondary-action,
+.secondary-submit {
+  border: 1px solid var(--line);
+  background: rgba(9, 7, 14, 0.62);
+  color: var(--ink);
+  box-shadow: none;
 }
 
 .scan-action {
@@ -317,7 +330,8 @@ select:focus {
 .people-list,
 .totals-list,
 .history-list,
-.settlement-list {
+.settlement-list,
+.pending-list {
   display: grid;
   gap: 12px;
 }
@@ -353,6 +367,7 @@ select:focus {
 .total-row,
 .history-row,
 .settle-row,
+.pending-row,
 .review-card {
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -399,6 +414,7 @@ select:focus {
 .person-row,
 .total-row,
 .settle-row,
+.pending-row,
 .row-head {
   display: flex;
   align-items: center;
@@ -567,13 +583,89 @@ select:focus {
   text-align: center;
 }
 
-.sticky-submit {
+.sticky-actions {
   position: fixed;
   left: 50%;
   bottom: max(16px, env(safe-area-inset-bottom));
   z-index: 10;
   width: min(398px, calc(100% - 32px));
   transform: translateX(-50%);
+}
+
+.sticky-submit,
+.secondary-submit {
+  width: 100%;
+}
+
+.scan-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.scan-drop {
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  min-height: 180px;
+  border: 1px dashed #34405f;
+  border-radius: 22px;
+  background: rgba(9, 7, 14, 0.48);
+  padding: 20px;
+  text-align: center;
+}
+
+.scan-drop svg {
+  width: 38px;
+  height: 38px;
+  color: var(--cyan);
+}
+
+.scan-progress {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid rgba(47, 208, 233, 0.34);
+  border-radius: 18px;
+  background: rgba(47, 208, 233, 0.08);
+  padding: 14px;
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  border: 4px solid rgba(255, 255, 255, 0.18);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.receipt-image {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  margin-top: 12px;
+}
+
+.confirmation-actions .secondary-action {
+  margin-top: 10px;
+}
+
+.pending-row {
+  align-items: stretch;
+}
+
+.pending-row button {
+  align-self: center;
+  min-width: 112px;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .hidden {
@@ -613,7 +705,9 @@ svg {
 
   .field-grid,
   .field-grid.two,
-  .bottom-actions {
+  .home-actions,
+  .scan-buttons,
+  .sticky-actions {
     grid-template-columns: 1fr;
   }
 
