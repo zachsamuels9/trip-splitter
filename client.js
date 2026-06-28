@@ -118,7 +118,9 @@ function currentGroupId() {
   if (!isBrowser) return savedGroupId;
   try {
     const params = new URLSearchParams(window.location.search);
-    return params.get("group") || savedGroupId;
+    const invitedGroupId = params.get("group") || "";
+    if (invitedGroupId) return invitedGroupId;
+    return isStartRoute() ? "" : savedGroupId;
   } catch {
     return savedGroupId;
   }
