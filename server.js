@@ -124,6 +124,7 @@ async function handleApi(req, res, url) {
 function serveStatic(req, res, url) {
   let filePath = decodeURIComponent(url.pathname);
   if (filePath === "/" || !path.extname(filePath)) filePath = "/index.html";
+  if (filePath === "/favicon.ico") filePath = "/icon.svg";
   const resolved = path.normalize(path.join(root, filePath));
   if (!resolved.startsWith(root)) {
     res.writeHead(403);

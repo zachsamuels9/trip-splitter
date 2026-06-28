@@ -1,14 +1,18 @@
-import { accessSync, readFileSync } from "node:fs";
+import { accessSync, existsSync, readFileSync } from "node:fs";
 
-const requiredFiles = ["index.html", "app.js", "styles.css", "manifest.json", "sw.js", "api/ocr.js", "api/groups.js"];
+const requiredFiles = ["index.html", "client.js", "styles.css", "manifest.json", "sw.js", "api/ocr.js", "api/groups.js"];
 
 for (const file of requiredFiles) {
   accessSync(file);
 }
 
 const html = readFileSync("index.html", "utf8");
-const app = readFileSync("app.js", "utf8");
+const app = readFileSync("client.js", "utf8");
 const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
+
+if (existsSync("app.js")) {
+  throw new Error("Browser code must not be named app.js at the project root because Vercel may treat it as a function entrypoint.");
+}
 
 if (!html.includes('type="file" accept="image/*" capture="environment"')) {
   throw new Error("Receipt upload input must be iPhone camera friendly.");

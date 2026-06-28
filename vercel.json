@@ -12,5 +12,15 @@
         }
       ]
     }
+  ],
+  "rewrites": [
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/favicon.ico",
+      "destination": "/icon.svg"
+    }
   ]
 }

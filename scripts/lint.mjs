@@ -1,14 +1,14 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const jsFiles = ["app.js", "server.js", "api/groups.js", "api/groups/[...path].js", "api/ocr.js", "lib/group-store.js", "sw.js"];
+const jsFiles = ["client.js", "server.js", "api/groups.js", "api/groups/[...path].js", "api/ocr.js", "lib/group-store.js", "sw.js"];
 
 for (const file of jsFiles) {
   execFileSync(process.execPath, ["--check", file], { stdio: "inherit" });
 }
 
 const forbiddenPatterns = [
-  { file: "app.js", pattern: /helloworld|OCR_SPACE_API_KEY|UPSTASH_REDIS_REST_TOKEN|SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY/ },
+  { file: "client.js", pattern: /helloworld|OCR_SPACE_API_KEY|UPSTASH_REDIS_REST_TOKEN|SUPABASE_PUBLISHABLE_KEY|SUPABASE_ANON_KEY/ },
   { file: "index.html", pattern: /localhost|127\.0\.0\.1/ },
 ];
 

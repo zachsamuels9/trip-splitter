@@ -1,5 +1,5 @@
 const cacheName = "trip-split-v1";
-const appShell = ["/", "/index.html", "/styles.css", "/app.js", "/manifest.json", "/icon.svg"];
+const appShell = ["/", "/index.html", "/styles.css", "/client.js", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(appShell)));
