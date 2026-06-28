@@ -35,6 +35,7 @@ if (isBrowser) {
     bindEvents();
     seedManualRows();
     registerServiceWorker();
+    state.receipts = normalizeReceipts(state.receipts);
     refreshRates();
     if (isStartRoute() && !startInviteGroupId()) {
       activeGroupId = "";
@@ -222,6 +223,7 @@ function bindEvents() {
     showStartOnboarding();
   });
   $("#installNative").addEventListener("click", promptInstall);
+  $("#installHome").addEventListener("click", () => showScreen("home"));
   $("#installBack").addEventListener("click", () => showScreen(installReturnScreen));
   $("#installCopyInvite").addEventListener("click", copyInviteLink);
   $("#showInstallHelp").addEventListener("click", () => {
@@ -342,6 +344,8 @@ async function refreshRates() {
     };
     saveRates();
     updateRateStatus("⇄ Rates online");
+    state.receipts = normalizeReceipts(state.receipts);
+    render();
   } catch {
     updateRateStatus(rates.updatedAt ? "Using saved rates" : "Using starter rates");
   }
@@ -496,7 +500,7 @@ async function saveGroupReceipt(receipt) {
 function applyGroup(group) {
   activeGroup = group;
   state.people = group.people;
-  state.receipts = group.receipts;
+  state.receipts = normalizeReceipts(group.receipts);
   saveState();
   rememberGroup(group, activePersonId);
 }
@@ -579,7 +583,12 @@ async function scanImage(event) {
 
 async function readReceiptText(imageDataUrl) {
   updateScanProgress("Reading receipt", "Using server receipt OCR...", true);
-  return readWithRemoteOcr(imageDataUrl);
+  try {
+    return await readWithRemoteOcr(imageDataUrl);
+  } catch (error) {
+    if (!/not configured|OCR is not configured/i.test(error.message || "")) throw error;
+    return readWithBrowserOcr(imageDataUrl);
+  }
 }
 
 function updateScanProgress(title, text, loading) {
@@ -611,6 +620,21 @@ async function readWithRemoteOcr(imageDataUrl) {
   const data = await response.json();
   if (!data.text) throw new Error("No OCR text");
   return { provider: data.provider || "receipt OCR", text: data.text };
+}
+
+async function readWithBrowserOcr(imageDataUrl) {
+  if (!window.Tesseract?.recognize) {
+    throw new Error("OCR is not configured. Add a server OCR provider key in Vercel.");
+  }
+  updateScanProgress("Reading receipt", "Using on-device OCR because server OCR is not configured...", true);
+  const result = await window.Tesseract.recognize(imageDataUrl, "eng", {
+    logger: (message) => {
+      if (message.status === "recognizing text") {
+        updateScanProgress("Reading receipt", `On-device OCR ${Math.round((message.progress || 0) * 100)}%`, true);
+      }
+    },
+  });
+  return { provider: "On-device OCR", text: result?.data?.text || "" };
 }
 
 function optimizeImageDataUrl(imageDataUrl) {
@@ -1255,15 +1279,19 @@ function selectedNativeTotal() {
   if (!parsedReceipt) return 0;
   if (splitMode === "even") return receiptTotal(parsedReceipt) / Math.max(1, splitEvenPeople.length || splitCount);
   if (splitMode === "amounts") return Number($(`[data-amount-person="${activePersonId || $("#reviewPaidBy").value}"]`)?.value || 0);
-  return sum(selectedItemsForActivePerson().map((item) => item.amount)) + selectedAdjustmentShare();
+  return sum(selectedItemsForActivePerson().map(itemShareForActivePerson)) + selectedAdjustmentShare();
 }
 
 function selectedAdjustmentShare() {
   if (!parsedReceipt) return 0;
-  const selectedSubtotal = sum(selectedItemsForActivePerson().map((item) => item.amount));
+  const selectedSubtotal = sum(selectedItemsForActivePerson().map(itemShareForActivePerson));
   const subtotal = sum(parsedReceipt.items.map((item) => item.amount));
   if (!selectedSubtotal || !subtotal) return 0;
   return (sum(parsedReceipt.fees.map((fee) => fee.amount)) - (parsedReceipt.discount || 0)) * (selectedSubtotal / subtotal);
+}
+
+function itemShareForActivePerson(item) {
+  return Number(item.amount || 0) / Math.max(1, (item.assignedTo || []).length);
 }
 
 function updateSelectionBar() {
@@ -1308,12 +1336,12 @@ function reviewSelections() {
   if (!items.length) return;
   const adjustment = selectedAdjustmentShare();
   $("#selectionReviewTotal").textContent = formatNative(selectedNativeTotal(), parsedReceipt.currency);
-  $("#selectionReviewReceipt").textContent = parsedReceipt.name || "Receipt";
+  $("#selectionReviewReceipt").textContent = parsedReceipt.name || "Expense";
   $("#selectionReviewCount").textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
   const nativeTotal = selectedNativeTotal();
   $("#selectionReviewList").innerHTML = [
-    ...items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(item.amount, parsedReceipt.currency)}</strong></div>`),
-    adjustment ? `<div class="fee-row"><span>Tip, tax, fees, discounts</span><strong>${formatNative(adjustment, parsedReceipt.currency)}</strong></div>` : "",
+    ...items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(itemShareForActivePerson(item), parsedReceipt.currency)}</strong></div>`),
+    adjustment ? `<div class="fee-row adjustment-row"><span>Tip, tax, fees, discounts</span><strong>${formatNative(adjustment, parsedReceipt.currency)}</strong></div>` : "",
     convertedLine(nativeTotal, parsedReceipt.currency),
   ]
     .filter(Boolean)
@@ -1472,6 +1500,21 @@ function toUsd(amount, currency) {
   return currency === "USD" ? amount : amount / rate;
 }
 
+function normalizeReceipts(receipts = []) {
+  return receipts.map((receipt) => {
+    const currency = receipt.currency || "USD";
+    const totalNative = Number(receipt.totalNative ?? receipt.totalUsd ?? receiptTotal(receipt));
+    const sharesNative = receipt.shares?.native || receipt.shares?.usd || {};
+    return {
+      ...receipt,
+      totalNative,
+      totalUsd: toUsd(totalNative, currency),
+      rateUsed: currency === "USD" ? 1 : rates.rates[currency] || receipt.rateUsed || 1,
+      shares: withUsd(sharesNative, currency),
+    };
+  });
+}
+
 function render() {
   renderGroupUi();
   renderGroups();
@@ -1539,11 +1582,12 @@ function leaveTrip() {
 }
 
 function renderInstallScreen() {
+  if (isBrowser && window.location.pathname !== "/") window.history.replaceState(null, "", "/");
   $("#installInviteLink").value = activeGroupId ? inviteUrl() : `${location.origin}/start`;
   $("#installInvitePanel").classList.toggle("hidden", !isTripOwner());
-  $("#installBack").classList.toggle("hidden", installReturnScreen === "home");
+  $("#installBack").classList.remove("hidden");
   $("#installPromptText").textContent = /iphone|ipad/i.test(navigator.userAgent)
-    ? "Tap Share in Safari, then Add to Home Screen."
+    ? "This page is set to the trip home. Tap Share in Safari, then Add to Home Screen."
     : "Use Add app when available, or install Trip Split from your browser menu.";
 }
 
@@ -1828,7 +1872,7 @@ function renderSummary() {
   const person = findPerson(personId);
   const totals = personId ? personTotals(personId) : { owed: 0 };
   $("#loggedInAs").textContent = person ? `Logged in as ${person.name}` : "Not signed in";
-  $("#personalTotal").textContent = `${person ? possessive(person.name) : "Your"} share ${money.format(totals.owed)}`;
+  $("#personalTotal").textContent = `My share ${money.format(totals.owed)}`;
 }
 
 function renderExpenses() {
@@ -1853,7 +1897,7 @@ function renderExpenses() {
             <article class="history-row">
               <div class="row-head">
                 <div>
-                  <div class="row-name">${escapeHtml(receipt.name || "Receipt")}</div>
+                  <button class="text-link row-name" data-edit-expense="${receipt.id}">${escapeHtml(receipt.name || "Receipt")}</button>
                   <div class="subtext">${new Date(receipt.date || receipt.createdAt).toLocaleDateString()}</div>
                 </div>
                 <div class="money">${formatNative(native, receipt.currency)}</div>
@@ -1867,6 +1911,10 @@ function renderExpenses() {
         )
         .join("")
     : `<div class="empty">Your accepted expenses will appear here.</div>`;
+
+  $$("[data-edit-expense]").forEach((button) => {
+    button.addEventListener("click", () => openReceiptForClaiming(button.dataset.editExpense));
+  });
 }
 
 function personTotals(personId) {

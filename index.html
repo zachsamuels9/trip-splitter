@@ -14,6 +14,7 @@
     <link rel="icon" href="/favicon.ico" />
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" defer></script>
     <script src="/client.js" defer></script>
   </head>
   <body>
@@ -153,6 +154,7 @@
           <strong>Save this app</strong>
           <span id="installPromptText">Use your browser share button, then choose Add to Home Screen.</span>
           <button class="primary full" id="installNative"><i data-lucide="download"></i><span>Add app</span></button>
+          <button class="primary full secondary-action" id="installHome"><i data-lucide="home"></i><span>Go to trip</span></button>
         </section>
         <section class="panel" id="installInvitePanel">
           <label>
@@ -228,23 +230,22 @@
         </section>
 
         <section class="panel">
-          <h2>Tip, tax, fees</h2>
           <div class="field-grid two">
             <label>
               <span>Tip</span>
-              <input id="manualTip" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <input id="manualTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
             </label>
             <label>
               <span>Tax</span>
-              <input id="manualTax" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <input id="manualTax" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
             </label>
             <label>
               <span>Fees</span>
-              <input id="manualFees" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <input id="manualFees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
             </label>
             <label>
               <span>Discount</span>
-              <input id="manualDiscount" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <input id="manualDiscount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
             </label>
           </div>
           <div class="review-card" id="manualReview"></div>
@@ -311,7 +312,7 @@
         <details class="panel receipt-details">
           <summary>
             <div>
-              <span>Review receipt details</span>
+              <span>Review expense details</span>
               <div class="detail-summary" id="reviewSummary"></div>
             </div>
             <i data-lucide="square-pen"></i>
@@ -426,10 +427,15 @@
           <button class="back-button" data-screen="itemize" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>Review selections</h1>
         </header>
-        <section class="receipt-card">
-          <p>Your total</p>
-          <strong id="selectionReviewTotal">$0.00</strong>
-          <span id="selectionReviewReceipt">Receipt</span>
+        <section class="receipt-card selection-review-card">
+          <div>
+            <p>Expense</p>
+            <strong id="selectionReviewReceipt">Receipt</strong>
+          </div>
+          <div>
+            <span>Your total</span>
+            <strong id="selectionReviewTotal">$0.00</strong>
+          </div>
         </section>
         <section class="panel">
           <div class="section-title">

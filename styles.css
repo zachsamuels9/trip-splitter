@@ -271,6 +271,11 @@ textarea {
   font-size: 18px;
 }
 
+#screen-manual input,
+#screen-manual select {
+  min-height: 60px;
+}
+
 input[type="date"] {
   min-width: 0;
   height: 56px;
@@ -546,6 +551,7 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   list-style: none;
   cursor: pointer;
   color: var(--ink);
@@ -555,6 +561,12 @@ textarea {
 .receipt-details summary > div {
   flex: 1;
   min-width: 0;
+}
+
+.receipt-details summary svg {
+  flex: 0 0 auto;
+  align-self: start;
+  margin-top: 2px;
 }
 
 .receipt-details summary::-webkit-details-marker {
@@ -764,6 +776,38 @@ textarea {
   background: rgba(47, 208, 233, 0.2);
   color: var(--cyan);
   font-weight: 1000;
+}
+
+#saveLaterReceipt {
+  border-color: rgba(47, 208, 233, 0.38);
+  background: rgba(18, 24, 39, 0.98);
+}
+
+.adjustment-row {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.selection-review-card {
+  grid-template-columns: 1.35fr 0.9fr;
+}
+
+.selection-review-card strong {
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.text-link {
+  width: auto;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(47, 208, 233, 0.55);
+  text-underline-offset: 4px;
 }
 
 .sticky-submit,
