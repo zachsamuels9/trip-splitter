@@ -319,7 +319,7 @@
             <h2>Receipt photo</h2>
             <span id="scanModeLabel">Ready</span>
           </div>
-          <div class="scan-drop">
+          <div class="scan-drop" id="scanDrop" role="button" tabindex="0" aria-label="Upload receipt photo">
             <i data-lucide="receipt-text"></i>
             <strong>Use a clear, flat photo</strong>
             <p class="subtext">Good lighting and all four receipt edges improve OCR accuracy.</p>
@@ -669,15 +669,19 @@
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>Settle up</h1>
         </header>
-        <section class="receipt-card">
-          <p id="settlementBalanceLabel">Your settlement balance</p>
-          <strong id="mySettlementBalance">$0.00</strong>
-          <span id="mySettlementHint">Add receipts to calculate settlements.</span>
+        <section class="receipt-card settlement-summary-card">
+          <div>
+            <p>You owe</p>
+            <strong id="settlementOwe">$0.00</strong>
+          </div>
+          <div>
+            <p>You are owed</p>
+            <strong id="settlementOwed">$0.00</strong>
+          </div>
         </section>
         <section class="panel">
           <div class="section-title">
             <h2>Net totals</h2>
-            <span>$</span>
           </div>
           <div id="settlementList" class="settlement-list"></div>
         </section>

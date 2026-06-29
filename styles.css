@@ -173,20 +173,23 @@ h2 {
 }
 
 .counter-button {
-  display: grid;
-  place-items: center;
-  min-width: 78px;
-  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 78px;
+  height: 58px;
+  padding: 0;
   margin-top: 10px;
   border-radius: 16px;
   background: rgba(9, 7, 14, 0.34);
   color: var(--ink);
 }
 
-.counter-button strong {
+.hero-card .counter-button strong {
   display: block;
   margin: 0;
   line-height: 1;
+  transform: translateY(0);
 }
 
 .hero-card,
@@ -207,6 +210,15 @@ h2 {
 }
 
 #screen-settle .hero-card strong {
+  text-align: left;
+}
+
+.settlement-summary-card {
+  grid-template-columns: 1fr 1fr;
+  justify-items: start;
+}
+
+.settlement-summary-card strong {
   text-align: left;
 }
 
@@ -415,7 +427,7 @@ textarea {
 .scan-action {
   margin: 0;
   background: linear-gradient(135deg, #f8fbff, var(--cyan));
-  color: #08111f;
+  color: #1f2937;
   text-shadow: none;
 }
 
@@ -427,6 +439,10 @@ textarea {
 
 .scan-action input {
   display: none;
+}
+
+.scan-action svg {
+  color: currentColor;
 }
 
 .step-line {
@@ -563,6 +579,20 @@ textarea {
   border-radius: 18px;
   background: rgba(9, 7, 14, 0.55);
   padding: 14px;
+}
+
+.manual-row {
+  display: grid;
+  gap: 12px;
+}
+
+.manual-row .field-grid,
+.manual-row .line-total {
+  margin-top: 0;
+}
+
+.manual-row .line-total {
+  padding-top: 2px;
 }
 
 .item-row {
@@ -1540,6 +1570,13 @@ textarea {
   background: rgba(9, 7, 14, 0.48);
   padding: 20px;
   text-align: center;
+  cursor: pointer;
+}
+
+.scan-drop:focus-visible {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(47, 208, 233, 0.18);
+  outline: none;
 }
 
 .scan-drop svg {
@@ -1689,11 +1726,13 @@ textarea {
 
 .settle-row {
   display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
+  grid-template-columns: 1fr;
+  align-items: start;
 }
 
 .settlement-amount {
+  margin-top: 8px;
+  text-align: left;
   font-size: 26px;
   font-weight: 1000;
 }

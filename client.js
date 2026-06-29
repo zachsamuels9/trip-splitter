@@ -331,6 +331,13 @@ function bindEvents() {
 
   $("#receiptImage").addEventListener("change", scanImage);
   $("#receiptUpload").addEventListener("change", scanImage);
+  $("#scanDrop").addEventListener("click", openReceiptUpload);
+  $("#scanDrop").addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openReceiptUpload();
+    }
+  });
   $("#manualAttachment").addEventListener("change", storeManualAttachment);
   $("#reviewAttachment").addEventListener("change", storeReviewAttachment);
   $("#addManualItem").addEventListener("click", () => addManualItem());
@@ -364,7 +371,17 @@ function bindEvents() {
     $(`#${id}`).addEventListener("input", updateParsedDetails);
   });
   $("#reviewCurrency").addEventListener("change", updateParsedCurrency);
-  $("#reviewPaidBy").addEventListener("change", () => {});
+  $("#paidBy").addEventListener("change", () => {
+    if (parsedReceipt?.source === "manual") parsedReceipt.paidBy = $("#paidBy").value;
+  });
+  $("#reviewPaidBy").addEventListener("change", () => {
+    if (parsedReceipt) {
+      parsedReceipt.paidBy = $("#reviewPaidBy").value;
+      renderReviewSummary();
+      const payer = findPerson(parsedReceipt.paidBy);
+      $("#parsedPaidBy").textContent = payer ? `${payer.name} paid for this tab` : "";
+    }
+  });
 
   ["reviewTip", "reviewTax", "reviewFees", "reviewDiscount"].forEach((id) => {
     $(`#${id}`).addEventListener("input", updateParsedAdjustments);
@@ -816,6 +833,10 @@ async function scanImage(event) {
   } finally {
     event.target.value = "";
   }
+}
+
+function openReceiptUpload() {
+  $("#receiptUpload")?.click();
 }
 
 async function readReceiptText(imageDataUrl) {
@@ -2144,6 +2165,7 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
     safeAlert("Add at least one person and choose who paid.");
     return;
   }
+  parsedReceipt.paidBy = paidBy;
 
   if (assignLater) {
     parsedReceipt.items.forEach((item) => {
@@ -2602,13 +2624,15 @@ async function switchGroup(groupId) {
 }
 
 function renderPeopleOptions() {
+  const manualPaidBy = $("#paidBy")?.value || "";
+  const reviewPaidBy = $("#reviewPaidBy")?.value || "";
   const options = state.people.map((person) => `<option value="${person.id}">${escapeHtml(person.name)}</option>`).join("");
   $("#paidBy").innerHTML = options;
   $("#reviewPaidBy").innerHTML = options;
-  if (activePersonId && state.people.some((person) => person.id === activePersonId)) {
-    $("#paidBy").value = activePersonId;
-    $("#reviewPaidBy").value = activePersonId;
-  }
+  const validIds = new Set(state.people.map((person) => person.id));
+  const fallbackPersonId = validIds.has(activePersonId) ? activePersonId : state.people[0]?.id || "";
+  $("#paidBy").value = validIds.has(manualPaidBy) ? manualPaidBy : fallbackPersonId;
+  $("#reviewPaidBy").value = validIds.has(reviewPaidBy) ? reviewPaidBy : fallbackPersonId;
   splitCount = Math.max(1, Math.min(splitCount, state.people.length || 1));
 }
 
@@ -2793,9 +2817,8 @@ function renderSettlements() {
   const balance = calculateBalances()[activePersonId] || 0;
   const receiveAmount = balance > 0.005 ? balance : 0;
   const oweAmount = balance < -0.005 ? Math.abs(balance) : 0;
-  $("#mySettlementBalance").textContent = balance > 0.005 ? money.format(receiveAmount) : balance < -0.005 ? money.format(oweAmount) : money.format(0);
-  $("#settlementBalanceLabel").textContent = balance > 0.005 ? "You are owed" : balance < -0.005 ? "You owe" : "You owe";
-  $("#mySettlementHint").textContent = `You owe ${money.format(oweAmount)} · You are owed ${money.format(receiveAmount)}`;
+  $("#settlementOwe").textContent = money.format(oweAmount);
+  $("#settlementOwed").textContent = money.format(receiveAmount);
   const settledIds = settledSettlementIds();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
   const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));
