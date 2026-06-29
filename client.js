@@ -472,7 +472,8 @@ async function refreshRates() {
 }
 
 function updateRateStatus(text) {
-  $("#rateStatus").textContent = text;
+  const status = $("#rateStatus");
+  if (status) status.textContent = text;
 }
 
 async function initGroup() {
@@ -1468,7 +1469,10 @@ function renderAssignment() {
     });
   });
   $$("[data-split-item]").forEach((button) => {
-    button.addEventListener("click", () => splitSingleItem(button.dataset.splitItem));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      splitSingleItem(button.dataset.splitItem);
+    });
   });
   $$("[data-share-person]").forEach((button) => {
     button.addEventListener("click", (event) => {
@@ -1536,6 +1540,7 @@ function selectItemRowMarkup(item, covered) {
   const quantity = itemQuantity(item);
   const currency = parsedReceipt.currency;
   const activePerson = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id || "";
+  const activeName = findPerson(activePerson)?.name || "you";
   const activeSelected = Boolean(activePerson && item.assignedTo?.includes(activePerson));
   const activeClaim = itemClaimQuantity(item, activePerson);
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
@@ -1628,7 +1633,7 @@ function renderReviewSummary() {
     <div><span>Name</span><strong>${escapeHtml(parsedReceipt.name || "Receipt")}</strong></div>
     <div><span>Date</span><strong>${escapeHtml(formatLongDate(parsedReceipt.date) || "Not set")}</strong></div>
     <div><span>Paid by</span><strong>${escapeHtml(payer)}</strong></div>
-    <div><span>Currency</span><strong>${escapeHtml(parsedReceipt.currency || "USD")}</strong></div>
+    <div><span>Currency</span><strong>${currencySymbol(parsedReceipt.currency || "USD")}</strong></div>
     <div><span>Tip</span><strong>${formatNative(adjustmentAmount("tip"), parsedReceipt.currency)}</strong></div>
     <div><span>Tax / fees</span><strong>${formatNative(adjustmentAmount("tax") + adjustmentAmount("fees"), parsedReceipt.currency)}</strong></div>
     <div><span>Discount</span><strong>${formatNative(parsedReceipt.discount || 0, parsedReceipt.currency)}</strong></div>
@@ -2789,7 +2794,7 @@ function renderSettlements() {
   const receiveAmount = balance > 0.005 ? balance : 0;
   const oweAmount = balance < -0.005 ? Math.abs(balance) : 0;
   $("#mySettlementBalance").textContent = balance > 0.005 ? money.format(receiveAmount) : balance < -0.005 ? money.format(oweAmount) : money.format(0);
-  $("#settlementBalanceLabel").textContent = balance > 0.005 ? "You should receive" : balance < -0.005 ? "You need to pay" : "Nothing left for you to settle";
+  $("#settlementBalanceLabel").textContent = balance > 0.005 ? "You are owed" : balance < -0.005 ? "You owe" : "You owe";
   $("#mySettlementHint").textContent = `You owe ${money.format(oweAmount)} · You are owed ${money.format(receiveAmount)}`;
   const settledIds = settledSettlementIds();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
@@ -2980,12 +2985,12 @@ function findPerson(personId) {
 }
 
 function formatNative(amount, currency) {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    minimumFractionDigits: currency === "VND" ? 0 : 2,
-    maximumFractionDigits: currency === "VND" ? 0 : 2,
-  }).format(amount || 0);
+  const code = supportedCurrencies.includes(currency) ? currency : "USD";
+  const value = new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: code === "VND" ? 0 : 2,
+    maximumFractionDigits: code === "VND" ? 0 : 2,
+  }).format(Number(amount || 0));
+  return `${currencySymbol(code)}${value}`;
 }
 
 function currencySymbol(currency) {
@@ -2995,8 +3000,8 @@ function currencySymbol(currency) {
 }
 
 function formatRate(currency, rate) {
-  if (currency === "USD") return "1 USD";
-  return `1 USD = ${Number(rate).toLocaleString("en-US", { maximumFractionDigits: currency === "VND" ? 0 : 2 })} ${currency}`;
+  if (currency === "USD") return "$1";
+  return `$1 = ${currencySymbol(currency)}${Number(rate).toLocaleString("en-US", { maximumFractionDigits: currency === "VND" ? 0 : 2 })}`;
 }
 
 function formatLongDate(value) {

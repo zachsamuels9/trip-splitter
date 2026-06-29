@@ -201,6 +201,15 @@ h2 {
   box-shadow: var(--shadow);
 }
 
+#screen-settle .hero-card {
+  grid-template-columns: 1fr;
+  justify-items: start;
+}
+
+#screen-settle .hero-card strong {
+  text-align: left;
+}
+
 .hero-card strong,
 .receipt-card strong {
   display: block;
@@ -405,11 +414,13 @@ textarea {
 
 .scan-action {
   margin: 0;
-  color: #fff;
-  text-shadow: 0 1px 10px rgba(9, 7, 14, 0.5);
+  background: linear-gradient(135deg, #f8fbff, var(--cyan));
+  color: #08111f;
+  text-shadow: none;
 }
 
 .scan-action.secondary-action {
+  background: rgba(9, 7, 14, 0.62);
   color: var(--ink);
   text-shadow: none;
 }
@@ -752,13 +763,13 @@ textarea {
 .detail-summary {
   display: grid;
   gap: 8px;
-  margin-top: 14px;
+  margin-top: 22px;
   width: 100%;
 }
 
 .detail-summary div {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
   gap: 12px;
   color: var(--muted);
   font-size: 14px;
@@ -767,6 +778,7 @@ textarea {
 .detail-summary strong {
   color: var(--ink);
   text-align: right;
+  justify-self: stretch;
 }
 
 .receipt-thumb {
@@ -826,54 +838,6 @@ textarea {
   box-shadow: inset 4px 0 0 var(--purple);
 }
 
-.claim-card-grid {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.claim-check {
-  display: block;
-  width: 42px;
-  height: 42px;
-  margin: 0;
-}
-
-.claim-check input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.claim-check span {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border: 3px solid #25314d;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.claim-check input:checked + span {
-  border-color: var(--purple);
-  background: var(--purple);
-  color: #fff;
-}
-
-.claim-check input:checked + span::before {
-  content: "✓";
-  font-size: 24px;
-  font-weight: 1000;
-}
-
-.claim-item-copy {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
 .claim-name-input {
   width: 100%;
   max-width: 100%;
@@ -891,36 +855,6 @@ textarea {
 .claim-name-input:focus {
   outline: 2px solid rgba(47, 208, 233, 0.42);
   outline-offset: 5px;
-}
-
-.claim-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  color: var(--muted);
-  font-size: 16px;
-  font-weight: 850;
-}
-
-.claim-covering {
-  color: var(--cyan);
-  font-size: 16px;
-  font-weight: 1000;
-}
-
-.claim-side {
-  display: grid;
-  justify-items: end;
-  gap: 12px;
-}
-
-.claim-side .delete-item {
-  width: 42px;
-  height: 42px;
-  min-height: 42px;
-  border-radius: 14px;
-  background: transparent;
-  color: var(--muted);
 }
 
 .claim-total {
@@ -1092,9 +1026,9 @@ textarea {
 
 .confirm-item-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
-  align-items: end;
+  align-items: center;
 }
 
 .compact-price {
@@ -1103,8 +1037,8 @@ textarea {
 
 .confirm-qty {
   display: grid;
-  grid-template-columns: 30px 38px 30px;
-  align-items: end;
+  grid-template-columns: 28px 34px 28px;
+  align-items: center;
   overflow: hidden;
   border: 1px solid rgba(129, 56, 244, 0.88);
   border-radius: 15px;
@@ -1112,13 +1046,13 @@ textarea {
 }
 
 .confirm-qty button {
-  min-height: 40px;
+  min-height: 36px;
   color: #fff;
   background: transparent;
 }
 
 .confirm-qty input {
-  min-height: 40px;
+  min-height: 36px;
   border: 0;
   border-radius: 0;
   background: rgba(9, 12, 24, 0.96);
@@ -1372,8 +1306,10 @@ textarea {
 .currency-input em {
   position: absolute;
   left: 12px;
-  bottom: 13px;
+  top: 50%;
+  transform: translateY(-50%);
   color: var(--muted);
+  line-height: 1;
   font-style: normal;
   font-weight: 1000;
 }
