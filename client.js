@@ -1516,29 +1516,39 @@ function confirmItemRowMarkup(item) {
   const quantity = itemQuantity(item);
   const currency = parsedReceipt.currency;
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
+  const total = Number(item.amount || unitPrice * quantity);
+  const unitAmountClass = amountSizeClass(unitPrice, currency);
+  const totalAmountClass = amountSizeClass(total, currency);
   return `
             <article class="confirm-item-card">
               <div class="confirm-item-head">
                 <input class="claim-name-input" data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" aria-label="Item name" />
-                <div class="confirm-qty">
-                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
-                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" aria-label="Quantity" />
-                  <button type="button" data-edit-qty-step="${item.id}" data-delta="1" aria-label="Increase ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
-                </div>
                 <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
                   <i data-lucide="trash-2"></i>
                 </button>
               </div>
               <div class="confirm-item-body">
-                <label class="currency-input compact-price">
+                <label class="currency-input compact-price ${unitAmountClass}">
                   <em>${currencySymbol(currency)}</em>
                   <input data-edit-item-unit="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(unitPrice)}" />
                   <span class="unit-suffix">/ea</span>
                 </label>
-                <strong class="claim-total">${formatNative(Number(item.amount || unitPrice * quantity), currency)}</strong>
+                <div class="confirm-qty">
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
+                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" aria-label="Quantity" />
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="1" aria-label="Increase ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
+                </div>
+                <strong class="claim-total ${totalAmountClass}">${formatNative(total, currency)}</strong>
               </div>
             </article>
           `;
+}
+
+function amountSizeClass(amount, currency) {
+  const text = formatNative(Number(amount || 0), currency);
+  if (text.length >= 12) return "amount-xs";
+  if (text.length >= 9) return "amount-sm";
+  return "";
 }
 
 function confirmStaticItemRowMarkup(item) {
