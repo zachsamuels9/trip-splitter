@@ -559,6 +559,7 @@ textarea {
 .receipt-row-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 12px;
   margin-top: 12px;
 }
@@ -566,6 +567,14 @@ textarea {
 .receipt-row-actions .receipt-open,
 .receipt-row-actions .history-thumb {
   margin-top: 0;
+}
+
+.receipt-row-actions .receipt-open {
+  order: 1;
+}
+
+.receipt-row-actions .history-thumb {
+  order: 2;
 }
 
 .receipt-open svg {
@@ -1110,9 +1119,19 @@ textarea {
 }
 
 .confirm-qty button {
+  display: grid;
+  place-items: center;
   min-height: 32px;
+  padding: 0;
   color: #fff;
   background: transparent;
+}
+
+.confirm-qty button svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  stroke-width: 3.2;
 }
 
 .confirm-qty input {
@@ -1286,6 +1305,10 @@ textarea {
 
 #expensesList .settled-archive .fee-row + .fee-row {
   margin-top: 10px;
+}
+
+#expensesHome {
+  margin-top: 18px;
 }
 
 .scan-result-card {

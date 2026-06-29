@@ -299,6 +299,7 @@ function bindEvents() {
   $("#saveAccount").addEventListener("click", saveAccountSettings);
   $("#loggedInBox").addEventListener("click", () => showScreen("account-settings"));
   $("#personalTotal").addEventListener("click", () => showScreen("expenses"));
+  $("#expensesHome").addEventListener("click", () => showScreen("home"));
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
   $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
@@ -2747,12 +2748,12 @@ function renderHistory() {
               </div>
               <div class="subtext">Original ${formatNative(receipt.totalNative, receipt.currency)} · ${formatRate(receipt.currency, receipt.rateUsed)}</div>
               <div class="receipt-row-actions">
-                ${receipt.imageDataUrl ? `<button class="receipt-thumb history-thumb" data-preview-receipt="${receipt.id}" aria-label="Open ${escapeHtml(receipt.name || "Receipt")} photo"><img src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" /></button>` : ""}
                 ${
                   receipt.splitMode === "items"
                     ? `<button class="small-primary receipt-open" data-open-receipt="${receipt.id}"><i data-lucide="list-checks"></i><span>${isPendingReceipt(receipt) ? "Split now" : "Edit items"}</span></button>`
                     : ""
                 }
+                ${receipt.imageDataUrl ? `<button class="receipt-thumb history-thumb" data-preview-receipt="${receipt.id}" aria-label="Open ${escapeHtml(receipt.name || "Receipt")} photo"><img src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" /></button>` : ""}
               </div>
             </article>
           `;
