@@ -511,6 +511,10 @@ textarea {
   gap: 12px;
 }
 
+#pickItemsPanel .items-list {
+  gap: 10px;
+}
+
 #historyList {
   margin-top: 16px;
 }
@@ -887,7 +891,7 @@ textarea {
   background: transparent;
   padding: 0;
   color: var(--ink);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 1000;
   line-height: 1.15;
 }
@@ -1033,22 +1037,22 @@ textarea {
 
 .confirm-item-card {
   display: grid;
-  gap: 18px;
-  padding: 18px;
+  gap: 14px;
+  padding: 14px 16px;
 }
 
 .confirm-item-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 44px;
+  grid-template-columns: minmax(0, 1fr) 36px;
   gap: 12px;
   align-items: center;
 }
 
 .confirm-item-head .delete-item {
-  width: 44px;
-  height: 44px;
-  min-height: 44px;
-  border-radius: 14px;
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  border-radius: 12px;
 }
 
 .readonly-confirm .confirm-item-head {
@@ -1074,50 +1078,51 @@ textarea {
 
 .confirm-item-body {
   display: grid;
-  grid-template-columns: minmax(94px, 1fr) auto minmax(64px, auto);
-  gap: 12px;
+  grid-template-columns: minmax(92px, 112px) auto minmax(58px, auto);
+  gap: 10px;
   align-items: center;
+  justify-content: space-between;
 }
 
 .compact-price {
   display: grid;
-  grid-template-columns: auto minmax(38px, 1fr) auto;
+  grid-template-columns: auto minmax(30px, 1fr) auto;
   align-items: center;
   min-width: 0;
-  min-height: 42px;
+  min-height: 36px;
   margin: 0;
   border: 1px solid #22304c;
-  border-radius: 15px;
+  border-radius: 13px;
   background: rgba(9, 12, 24, 0.86);
-  padding: 0 12px;
+  padding: 0 10px;
   color: var(--muted);
   font-weight: 900;
 }
 
 .confirm-qty {
   display: grid;
-  grid-template-columns: 34px 44px 34px;
+  grid-template-columns: 30px 38px 30px;
   align-items: center;
   overflow: hidden;
   border: 1px solid rgba(129, 56, 244, 0.88);
-  border-radius: 15px;
+  border-radius: 13px;
   background: rgba(129, 56, 244, 0.92);
 }
 
 .confirm-qty button {
-  min-height: 42px;
+  min-height: 36px;
   color: #fff;
   background: transparent;
 }
 
 .confirm-qty input {
-  min-height: 42px;
+  min-height: 36px;
   border: 0;
   border-radius: 0;
   background: rgba(9, 12, 24, 0.96);
   padding: 0;
   text-align: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 1000;
 }
 
@@ -1127,25 +1132,25 @@ textarea {
 }
 
 .compact-price input {
-  min-height: 40px;
+  min-height: 34px;
   border: 0;
   background: transparent;
   padding: 0 4px;
   color: var(--ink);
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 900;
 }
 
 .compact-price .unit-suffix {
   color: var(--muted);
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 900;
 }
 
 .confirm-item-body .claim-total {
   grid-column: auto;
   justify-self: end;
-  font-size: 20px;
+  font-size: 18px;
 }
 
 @media (max-width: 380px) {
@@ -1420,7 +1425,7 @@ textarea {
 }
 
 .confirm-item-body .compact-price input {
-  min-height: 40px;
+  min-height: 34px;
   border: 0;
   background: transparent;
   padding: 0 4px;
