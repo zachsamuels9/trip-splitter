@@ -2736,7 +2736,7 @@ function renderHistory() {
     ? sortedReceipts
         .map((receipt) => {
           const payer = findPerson(receipt.paidBy)?.name || "Unknown";
-          const date = new Date(receipt.date || receipt.createdAt).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+          const date = formatShortDate(receipt.date || receipt.createdAt);
           return `
             <article class="history-row">
               <div class="row-head">
@@ -2934,7 +2934,7 @@ function renderExpenses() {
               <div class="row-head">
                 <div>
                   <button class="text-link row-name" data-edit-expense="${receipt.id}">${escapeHtml(receipt.name || "Receipt")}</button>
-                  <div class="subtext">${new Date(receipt.date || receipt.createdAt).toLocaleDateString()}</div>
+                  <div class="subtext">${formatShortDate(receipt.date || receipt.createdAt, {})}</div>
                 </div>
                 <div class="money">${money.format(toUsd(native, receipt.currency))}</div>
               </div>
@@ -3055,6 +3055,19 @@ function formatLongDate(value) {
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+}
+
+function formatShortDate(value, options = { month: "short", day: "numeric" }) {
+  if (!value) return "";
+  const date = parseDisplayDate(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, options);
+}
+
+function parseDisplayDate(value) {
+  const text = String(value);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return new Date(`${text}T00:00:00`);
+  return new Date(text);
 }
 
 function possessive(name) {
