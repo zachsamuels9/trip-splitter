@@ -1520,6 +1520,11 @@ function confirmItemRowMarkup(item) {
             <article class="confirm-item-card">
               <div class="confirm-item-head">
                 <input class="claim-name-input" data-edit-item-name="${item.id}" type="text" value="${escapeHtml(item.name)}" aria-label="Item name" />
+                <div class="confirm-qty">
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
+                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" aria-label="Quantity" />
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="1" aria-label="Increase ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
+                </div>
                 <button class="delete-item" data-delete-item="${item.id}" aria-label="Delete ${escapeHtml(item.name)}">
                   <i data-lucide="trash-2"></i>
                 </button>
@@ -1530,11 +1535,6 @@ function confirmItemRowMarkup(item) {
                   <input data-edit-item-unit="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(unitPrice)}" />
                   <span class="unit-suffix">/ea</span>
                 </label>
-                <div class="confirm-qty">
-                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
-                  <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" aria-label="Quantity" />
-                  <button type="button" data-edit-qty-step="${item.id}" data-delta="1" aria-label="Increase ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
-                </div>
                 <strong class="claim-total">${formatNative(Number(item.amount || unitPrice * quantity), currency)}</strong>
               </div>
             </article>

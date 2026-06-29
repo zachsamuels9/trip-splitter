@@ -1037,14 +1037,14 @@ textarea {
 
 .confirm-item-card {
   display: grid;
-  gap: 14px;
+  gap: 16px;
   padding: 14px 16px;
 }
 
 .confirm-item-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto 36px;
+  gap: 10px;
   align-items: center;
 }
 
@@ -1078,15 +1078,15 @@ textarea {
 
 .confirm-item-body {
   display: grid;
-  grid-template-columns: minmax(92px, 112px) auto minmax(58px, auto);
-  gap: 10px;
+  grid-template-columns: minmax(126px, 1fr) minmax(64px, auto);
+  gap: 14px;
   align-items: center;
   justify-content: space-between;
 }
 
 .compact-price {
   display: grid;
-  grid-template-columns: auto minmax(30px, 1fr) auto;
+  grid-template-columns: auto minmax(54px, 1fr) auto;
   align-items: center;
   min-width: 0;
   min-height: 36px;
@@ -1101,7 +1101,7 @@ textarea {
 
 .confirm-qty {
   display: grid;
-  grid-template-columns: 30px 38px 30px;
+  grid-template-columns: 28px 36px 28px;
   align-items: center;
   overflow: hidden;
   border: 1px solid rgba(129, 56, 244, 0.88);
@@ -1110,13 +1110,13 @@ textarea {
 }
 
 .confirm-qty button {
-  min-height: 36px;
+  min-height: 34px;
   color: #fff;
   background: transparent;
 }
 
 .confirm-qty input {
-  min-height: 36px;
+  min-height: 34px;
   border: 0;
   border-radius: 0;
   background: rgba(9, 12, 24, 0.96);
@@ -1154,12 +1154,17 @@ textarea {
 }
 
 @media (max-width: 380px) {
+  .confirm-item-head {
+    grid-template-columns: minmax(0, 1fr) 86px 34px;
+    gap: 8px;
+  }
+
   .confirm-item-body {
-    grid-template-columns: minmax(86px, 1fr) auto;
+    grid-template-columns: minmax(118px, 1fr) auto;
   }
 
   .confirm-item-body .claim-total {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 }
 
