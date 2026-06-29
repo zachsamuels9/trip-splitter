@@ -387,6 +387,18 @@
           </div>
         </section>
 
+        <section class="panel receipt-tip-panel" id="receiptTipPanel">
+          <div class="section-title">
+            <h2>Tip</h2>
+            <span>Add after receipt</span>
+          </div>
+          <label>
+            <span>Tip amount</span>
+            <input id="reviewTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+          </label>
+          <p class="subtext">Use this for handwritten or after-payment tips. Leave it blank if tip is already itemized.</p>
+        </section>
+
         <details class="panel receipt-details">
           <summary>
             <div>
@@ -421,10 +433,6 @@
             <input id="reviewDate" type="date" />
           </label>
           <div class="field-grid two">
-            <label>
-              <span>Tip</span>
-              <input id="reviewTip" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
-            </label>
             <label>
               <span>Tax</span>
               <input id="reviewTax" type="number" min="0" step="0.01" inputmode="decimal" value="0" />

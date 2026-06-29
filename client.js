@@ -1349,6 +1349,7 @@ function renderAssignment() {
   $("#itemizeKicker").textContent = itemizeStage === "confirm" ? (parsedReceipt.source === "manual" ? "Review expense" : "Smart scan by AI") : "Receipt total";
   $("#screen-itemize .back-button").dataset.screen = itemizeStage === "assign" ? "split-choice" : parsedReceipt.source === "manual" ? "manual" : "home";
   renderReceiptTotals();
+  $("#pickItemsPanel h2").textContent = itemizeStage === "confirm" ? "Items" : "Select items";
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
   $("#splitCount").textContent = splitCount;
@@ -1366,6 +1367,7 @@ function renderAssignment() {
   $("#currencyReviewPrompt").classList.toggle("hidden", !parsedReceipt.currencyNeedsReview || itemizeStage !== "confirm");
   $("#currencyReviewSelect").value = parsedReceipt.currency || "THB";
   $(".receipt-details").classList.toggle("hidden", itemizeStage !== "confirm");
+  $("#receiptTipPanel").classList.toggle("hidden", itemizeStage !== "confirm" || parsedReceipt.source === "manual");
   $(".split-methods").classList.add("hidden");
   $("#claimRemaining").classList.toggle("hidden", itemizeStage !== "assign" || splitMode !== "items");
   updateClaimRemainingButton();
@@ -1406,6 +1408,9 @@ function renderAssignment() {
   });
   $$("[data-claim-adjust]").forEach((button) => {
     button.addEventListener("click", () => adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0)));
+  });
+  $$("[data-split-item]").forEach((button) => {
+    button.addEventListener("click", () => splitSingleItem(button.dataset.splitItem));
   });
   makeIcons();
   updateSelectionBar();
@@ -1454,9 +1459,9 @@ function confirmStaticItemRowMarkup(item) {
             <article class="confirm-item-card readonly-confirm">
               <div class="confirm-item-head">
                 <strong>${escapeHtml(item.name)}</strong>
-              </div>
-              <div class="confirm-item-body">
                 <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
+              </div>
+              <div class="readonly-confirm-total">
                 <strong class="claim-total">${formatNative(Number(item.amount || unitPrice * quantity), currency)}</strong>
               </div>
             </article>
@@ -1472,6 +1477,7 @@ function selectItemRowMarkup(item, covered) {
   const activeClaim = itemClaimQuantity(item, activePerson);
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
   const activeShare = itemShareForPerson(item, activePerson);
+  const canSplitSingle = quantity === 1 && state.people.length > 1;
   return `
             <article class="select-item-row ${activeSelected ? "selected" : ""}">
               ${covered ? `<div class="covered-label">Already covered - tap to edit</div>` : ""}
@@ -1483,16 +1489,19 @@ function selectItemRowMarkup(item, covered) {
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
                 <em class="${activeSelected ? "" : "invisible"}">Covering: ${formatNative(activeShare, currency)}</em>
+                ${canSplitSingle ? `<button type="button" class="inline-split" data-split-item="${item.id}">Split item</button>` : ""}
               </div>
-              ${
-                quantity > 1 && activeSelected
-                  ? `<div class="claim-stepper large" aria-label="${escapeHtml(activeName)} quantity">
+              <div class="claim-action-slot">
+                ${
+                  quantity > 1
+                    ? `<div class="claim-stepper large ${activeSelected ? "" : "invisible"}" aria-label="${escapeHtml(activeName)} quantity">
                       <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
                       <strong>${activeClaim || 0}</strong>
                       <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
                     </div>`
-                  : `<strong class="claim-total">${formatNative(activeSelected ? activeShare : Number(item.amount || 0), currency)}</strong>`
-              }
+                    : `<strong class="claim-total">${formatNative(activeSelected ? activeShare : Number(item.amount || 0), currency)}</strong>`
+                }
+              </div>
             </article>
           `;
 }
@@ -1544,7 +1553,8 @@ function renderReviewSummary() {
     <div><span>Date</span><strong>${escapeHtml(formatLongDate(parsedReceipt.date) || "Not set")}</strong></div>
     <div><span>Paid by</span><strong>${escapeHtml(payer)}</strong></div>
     <div><span>Currency</span><strong>${escapeHtml(parsedReceipt.currency || "USD")}</strong></div>
-    <div><span>Tip / tax / fees</span><strong>${formatNative(sum(parsedReceipt.fees.map((fee) => fee.amount)), parsedReceipt.currency)}</strong></div>
+    <div><span>Tip</span><strong>${formatNative(adjustmentAmount("tip"), parsedReceipt.currency)}</strong></div>
+    <div><span>Tax / fees</span><strong>${formatNative(adjustmentAmount("tax") + adjustmentAmount("fees"), parsedReceipt.currency)}</strong></div>
     <div><span>Discount</span><strong>${formatNative(parsedReceipt.discount || 0, parsedReceipt.currency)}</strong></div>
     ${parsedReceipt.description ? `<div><span>Notes</span><strong>${escapeHtml(parsedReceipt.description)}</strong></div>` : ""}
   `;
@@ -1791,6 +1801,26 @@ function adjustItemClaim(itemId, personId, delta) {
   item.claims = clampClaims({ ...item, claims });
   item.assignedTo = Object.keys(item.claims);
   renderAssignment();
+}
+
+function splitSingleItem(itemId) {
+  if (!parsedReceipt) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === itemId);
+  if (!item || itemQuantity(item) !== 1) return;
+  const activePerson = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id;
+  if (!activePerson) return;
+  const maxPeople = Math.max(2, state.people.length);
+  const requested = Number(safePrompt(`Split this item how many ways?`, "2") || 0);
+  const splitCount = Math.min(maxPeople, Math.max(2, Math.floor(requested || 2)));
+  const otherPeople = state.people.map((person) => person.id).filter((id) => id && id !== activePerson);
+  item.assignedTo = [activePerson, ...otherPeople.slice(0, splitCount - 1)];
+  item.claims = {};
+  renderAssignment();
+}
+
+function safePrompt(message, fallback = "") {
+  if (!isBrowser || typeof window.prompt !== "function") return fallback;
+  return window.prompt(message, fallback);
 }
 
 function claimAllRemaining() {
@@ -2587,6 +2617,7 @@ function renderHistory() {
   $$("[data-preview-receipt]").forEach((button) => {
     button.addEventListener("click", () => openSavedReceiptImagePreview(button.dataset.previewReceipt));
   });
+  makeIcons();
 }
 
 function renderPendingReceipts() {

@@ -497,6 +497,10 @@ textarea {
   margin-top: 12px;
 }
 
+.receipt-open svg {
+  flex: 0 0 auto;
+}
+
 .receipt-link {
   display: inline-flex;
   color: var(--cyan);
@@ -905,23 +909,23 @@ textarea {
 }
 
 .claim-stepper.large {
-  grid-template-columns: 40px 44px 40px;
+  grid-template-columns: 32px 36px 32px;
   border-color: rgba(129, 56, 244, 0.9);
-  border-radius: 16px;
+  border-radius: 14px;
   background: rgba(129, 56, 244, 0.92);
 }
 
 .claim-stepper.large button {
-  min-height: 42px;
+  min-height: 36px;
   background: transparent;
 }
 
 .claim-stepper.large strong {
-  min-height: 42px;
+  min-height: 36px;
   display: grid;
   place-items: center;
   background: rgba(9, 12, 24, 0.94);
-  font-size: 20px;
+  font-size: 17px;
 }
 
 .mini-heading {
@@ -1028,12 +1032,24 @@ textarea {
 }
 
 .readonly-confirm .confirm-item-head {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .readonly-confirm .confirm-item-head strong {
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.readonly-confirm .confirm-item-head span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.readonly-confirm-total {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .confirm-item-body {
@@ -1076,10 +1092,11 @@ textarea {
 
 .select-item-row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) minmax(64px, auto);
-  gap: 10px;
+  grid-template-columns: 36px minmax(0, 1fr) 104px;
+  gap: 12px;
   align-items: center;
   position: relative;
+  min-height: 112px;
 }
 
 .select-item-row.selected {
@@ -1091,6 +1108,7 @@ textarea {
   display: grid;
   gap: 4px;
   min-width: 0;
+  align-content: center;
 }
 
 .select-item-copy strong {
@@ -1117,6 +1135,30 @@ textarea {
   visibility: hidden;
 }
 
+.claim-action-slot {
+  display: grid;
+  justify-items: end;
+  align-items: center;
+  min-height: 40px;
+}
+
+.claim-action-slot .invisible {
+  visibility: hidden;
+}
+
+.inline-split {
+  justify-self: start;
+  width: auto;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  padding: 0;
+  font-size: 13px;
+  font-weight: 1000;
+  text-align: left;
+}
+
 #expensesList .history-row .row-name {
   display: inline-block;
   margin-bottom: 6px;
@@ -1124,6 +1166,10 @@ textarea {
 
 #expensesList .settled-archive[open] summary {
   margin-bottom: 12px;
+}
+
+#expensesList .settled-archive .fee-row + .fee-row {
+  margin-top: 10px;
 }
 
 .scan-result-card {
