@@ -29,6 +29,7 @@ const settingsReturnScreens = new Set();
 const navigationStack = [];
 let currentScreenName = "";
 let accountProfile = null;
+let settlementArchiveOpen = false;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -1525,9 +1526,9 @@ function confirmItemRowMarkup(item) {
               </div>
               <div class="confirm-item-body">
                 <label class="currency-input compact-price">
-                  <span>Unit price</span>
                   <em>${currencySymbol(currency)}</em>
                   <input data-edit-item-unit="${item.id}" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(unitPrice)}" />
+                  <span class="unit-suffix">/ea</span>
                 </label>
                 <div class="confirm-qty">
                   <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
@@ -2814,14 +2815,13 @@ function openReceiptForClaiming(receiptId) {
 
 function renderSettlements() {
   const settlements = calculateSettlements();
-  const balance = calculateBalances()[activePersonId] || 0;
-  const receiveAmount = balance > 0.005 ? balance : 0;
-  const oweAmount = balance < -0.005 ? Math.abs(balance) : 0;
-  $("#settlementOwe").textContent = money.format(oweAmount);
-  $("#settlementOwed").textContent = money.format(receiveAmount);
   const settledIds = settledSettlementIds();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
   const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));
+  const receiveAmount = roundCents(sum(active.filter((settlement) => settlement.toId === activePersonId).map((settlement) => settlement.amount)));
+  const oweAmount = roundCents(sum(active.filter((settlement) => settlement.fromId === activePersonId).map((settlement) => settlement.amount)));
+  $("#settlementOwe").textContent = money.format(oweAmount);
+  $("#settlementOwed").textContent = money.format(receiveAmount);
   updateSettleNavState(active.length);
   $("#settlementList").innerHTML = [
     active.length
@@ -2841,7 +2841,7 @@ function renderSettlements() {
         .join("")
       : `<div class="empty">No active payments due. Net settlement is ${money.format(0)}.</div>`,
     archived.length
-      ? `<details class="settled-archive"><summary>Settled archive (${archived.length})</summary>${archived
+      ? `<details class="settled-archive" data-settlement-archive ${settlementArchiveOpen ? "open" : ""}><summary>Settled archive (${archived.length})</summary><div class="settled-archive-list">${archived
           .map(
             (settlement) => `
               <div class="settle-row">
@@ -2854,9 +2854,12 @@ function renderSettlements() {
               </div>
             `
           )
-          .join("")}</details>`
+          .join("")}</div></details>`
       : "",
   ].join("");
+  $("[data-settlement-archive]")?.addEventListener("toggle", (event) => {
+    settlementArchiveOpen = event.currentTarget.open;
+  });
   $$("[data-settle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.settle, true)));
   $$("[data-unsettle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.unsettle, false)));
 }
@@ -2984,7 +2987,16 @@ function calculateSettlements() {
     const debtor = debtors[debtorIndex];
     const creditor = creditors[creditorIndex];
     const amount = roundCents(Math.min(debtor.amount, creditor.amount));
-    if (amount > 0) settlements.push({ id: `${debtor.person.id}-${creditor.person.id}-${amount}`, from: debtor.person.name, to: creditor.person.name, amount });
+    if (amount > 0) {
+      settlements.push({
+        id: `${debtor.person.id}-${creditor.person.id}-${amount}`,
+        fromId: debtor.person.id,
+        toId: creditor.person.id,
+        from: debtor.person.name,
+        to: creditor.person.name,
+        amount,
+      });
+    }
     debtor.amount = roundCents(debtor.amount - amount);
     creditor.amount = roundCents(creditor.amount - amount);
     if (debtor.amount <= 0.005) debtorIndex += 1;

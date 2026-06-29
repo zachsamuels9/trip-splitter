@@ -431,6 +431,12 @@ textarea {
   text-shadow: none;
 }
 
+.scan-action:not(.secondary-action),
+.scan-action:not(.secondary-action) span,
+.scan-action:not(.secondary-action) svg {
+  color: #1f2937;
+}
+
 .scan-action.secondary-action {
   background: rgba(9, 7, 14, 0.62);
   color: var(--ink);
@@ -535,6 +541,10 @@ textarea {
   grid-template-columns: 1fr auto;
   align-items: end;
   margin-top: 12px;
+}
+
+#screen-join .hero-card {
+  margin-bottom: 16px;
 }
 
 .receipt-link,
@@ -1023,14 +1033,22 @@ textarea {
 
 .confirm-item-card {
   display: grid;
-  gap: 14px;
+  gap: 18px;
+  padding: 18px;
 }
 
 .confirm-item-head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px;
+  grid-template-columns: minmax(0, 1fr) 44px;
   gap: 12px;
   align-items: center;
+}
+
+.confirm-item-head .delete-item {
+  width: 44px;
+  height: 44px;
+  min-height: 44px;
+  border-radius: 14px;
 }
 
 .readonly-confirm .confirm-item-head {
@@ -1056,18 +1074,29 @@ textarea {
 
 .confirm-item-body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: minmax(94px, 1fr) auto minmax(64px, auto);
+  gap: 12px;
   align-items: center;
 }
 
 .compact-price {
+  display: grid;
+  grid-template-columns: auto minmax(38px, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  min-height: 42px;
   margin: 0;
+  border: 1px solid #22304c;
+  border-radius: 15px;
+  background: rgba(9, 12, 24, 0.86);
+  padding: 0 12px;
+  color: var(--muted);
+  font-weight: 900;
 }
 
 .confirm-qty {
   display: grid;
-  grid-template-columns: 28px 34px 28px;
+  grid-template-columns: 34px 44px 34px;
   align-items: center;
   overflow: hidden;
   border: 1px solid rgba(129, 56, 244, 0.88);
@@ -1076,13 +1105,13 @@ textarea {
 }
 
 .confirm-qty button {
-  min-height: 36px;
+  min-height: 42px;
   color: #fff;
   background: transparent;
 }
 
 .confirm-qty input {
-  min-height: 36px;
+  min-height: 42px;
   border: 0;
   border-radius: 0;
   background: rgba(9, 12, 24, 0.96);
@@ -1090,6 +1119,43 @@ textarea {
   text-align: center;
   font-size: 18px;
   font-weight: 1000;
+}
+
+.compact-price em {
+  position: static;
+  transform: none;
+}
+
+.compact-price input {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.compact-price .unit-suffix {
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.confirm-item-body .claim-total {
+  grid-column: auto;
+  justify-self: end;
+  font-size: 20px;
+}
+
+@media (max-width: 380px) {
+  .confirm-item-body {
+    grid-template-columns: minmax(86px, 1fr) auto;
+  }
+
+  .confirm-item-body .claim-total {
+    grid-column: 1 / -1;
+  }
 }
 
 .select-item-row {
@@ -1346,6 +1412,18 @@ textarea {
 
 .currency-input input {
   padding-left: 30px;
+}
+
+.confirm-item-body .compact-price em {
+  position: static;
+  transform: none;
+}
+
+.confirm-item-body .compact-price input {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
 }
 
 .parsed-item-fields label {
@@ -1761,6 +1839,15 @@ textarea {
   color: var(--cyan);
   font-weight: 1000;
   cursor: pointer;
+}
+
+.settled-archive[open] summary {
+  margin-bottom: 14px;
+}
+
+.settled-archive-list {
+  display: grid;
+  gap: 12px;
 }
 
 .group-row.active {
