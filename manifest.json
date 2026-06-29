@@ -1,6 +1,6 @@
 {
-  "name": "Trip Split",
-  "short_name": "Trip Split",
+  "name": "Split My Trip",
+  "short_name": "Split My Trip",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

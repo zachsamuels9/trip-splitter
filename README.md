@@ -1,6 +1,6 @@
-# Trip Split
+# Split My Trip
 
-Trip Split is a mobile-first PWA for scanning trip receipts, letting each traveler claim items, converting supported currencies to USD, and calculating settlement totals.
+Split My Trip is a mobile-first PWA for scanning trip receipts, letting each traveler claim items, converting supported currencies to USD, and calculating settlement totals.
 
 ## Stack
 

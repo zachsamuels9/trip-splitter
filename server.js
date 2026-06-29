@@ -13,6 +13,7 @@ const {
   publicGroup,
   reopenGroup,
   resetTrip,
+  restoreTrip,
   signInAccount,
   updateAccount,
   upsertReceipt,
@@ -128,6 +129,17 @@ async function handleApi(req, res, url) {
     return;
   }
 
+  const adminRestoreMatch = url.pathname.match(/^\/api\/admin\/trips\/([^/]+)\/restore$/);
+  if (adminRestoreMatch && req.method === "POST") {
+    const body = await readBody(req);
+    if (body.password !== "1234") {
+      sendJson(res, 401, { error: "Unauthorized" });
+      return;
+    }
+    sendJson(res, 200, await restoreTrip(adminRestoreMatch[1]));
+    return;
+  }
+
   if (req.method === "POST" && url.pathname === "/api/ocr") {
     const body = await readRawBody(req);
     const payload = JSON.parse(body.toString("utf8") || "{}");
@@ -222,5 +234,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Trip Split running at http://${host}:${port}/`);
+  console.log(`Split My Trip running at http://${host}:${port}/`);
 });

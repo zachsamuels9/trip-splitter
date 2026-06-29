@@ -175,6 +175,7 @@ h2 {
 .counter-button {
   display: block;
   min-width: 78px;
+  margin-top: 10px;
   border-radius: 16px;
   background: rgba(9, 7, 14, 0.34);
   color: var(--ink);
@@ -386,6 +387,13 @@ textarea {
 
 .scan-action {
   margin: 0;
+  color: #fff;
+  text-shadow: 0 1px 10px rgba(9, 7, 14, 0.5);
+}
+
+.scan-action.secondary-action {
+  color: var(--ink);
+  text-shadow: none;
 }
 
 .scan-action input {
@@ -1019,6 +1027,15 @@ textarea {
   align-items: center;
 }
 
+.readonly-confirm .confirm-item-head {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.readonly-confirm .confirm-item-head strong {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .confirm-item-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 104px;
@@ -1096,6 +1113,19 @@ textarea {
   font-weight: 1000;
 }
 
+.select-item-copy em.invisible {
+  visibility: hidden;
+}
+
+#expensesList .history-row .row-name {
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+#expensesList .settled-archive[open] summary {
+  margin-bottom: 12px;
+}
+
 .scan-result-card {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
@@ -1143,25 +1173,25 @@ textarea {
 
 .choice-stack {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 .choice-card {
   display: grid;
-  grid-template-columns: 72px 1fr 26px;
-  gap: 18px;
+  grid-template-columns: 52px 1fr 22px;
+  gap: 14px;
   align-items: center;
-  min-height: 132px;
-  border-radius: 28px;
-  padding: 20px;
+  min-height: 96px;
+  border-radius: 22px;
+  padding: 14px;
   color: white;
   text-align: left;
 }
 
 .choice-card > svg:first-child {
-  width: 64px;
-  height: 64px;
-  padding: 16px;
+  width: 48px;
+  height: 48px;
+  padding: 12px;
   border: 2px solid rgba(255, 255, 255, 0.28);
   border-radius: 22px;
   background: rgba(255, 255, 255, 0.14);
@@ -1173,14 +1203,14 @@ textarea {
 }
 
 .choice-card strong {
-  font-size: 32px;
+  font-size: 24px;
   line-height: 1;
 }
 
 .choice-card small {
-  margin-top: 8px;
+  margin-top: 6px;
   color: rgba(255, 255, 255, 0.78);
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1.35;
   font-weight: 850;
 }
@@ -1200,7 +1230,7 @@ textarea {
 .or-divider {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
-  gap: 16px;
+  gap: 10px;
   align-items: center;
   color: var(--muted);
   font-weight: 1000;

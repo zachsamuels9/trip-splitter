@@ -316,6 +316,7 @@ function bindEvents() {
   $("#claimRemaining").addEventListener("click", claimAllRemaining);
   $("#manualToItemize").addEventListener("click", buildManualReceipt);
   $("#addParsedItem").addEventListener("click", addParsedItem);
+  $("#editManualItems").addEventListener("click", () => showScreen("manual"));
   $("#reviewSelections").addEventListener("click", reviewSelections);
   $("#acceptSelections").addEventListener("click", () => saveReceipt(false, true));
   $("#saveLaterReceipt").addEventListener("click", () => saveReceipt(true));
@@ -574,7 +575,7 @@ async function copyInviteLink() {
 
 function textInviteLink() {
   if (!activeGroupId || !isBrowser) return;
-  const body = encodeURIComponent(`Join my Trip Split group: ${inviteUrl()}`);
+  const body = encodeURIComponent(`Join my Split My Trip group: ${inviteUrl()}`);
   window.location.href = `sms:&body=${body}`;
 }
 
@@ -669,7 +670,12 @@ async function signInAccount() {
     );
     const firstTrip = result.trips?.[0];
     if (!firstTrip) {
-      safeAlert("No trips found for that account.");
+      activeGroupId = "";
+      activePersonId = "";
+      activeGroup = null;
+      state = defaultState();
+      render();
+      showScreen("groups");
       return;
     }
     activeGroupId = firstTrip.id;
@@ -1248,6 +1254,10 @@ function renderManualReview() {
 
 function buildManualReceipt() {
   const draft = getManualDraft();
+  if (!$("#receiptCurrency").value || !$("#paidBy").value || !$("#manualDate").value || !$("#manualName").value.trim()) {
+    safeAlert("Add the required expense name, date, currency, and paid by fields.");
+    return;
+  }
   if (draft.incompleteRows.length) {
     safeAlert("Finish the item name and unit price for any row you started, or leave it blank.");
     return;
@@ -1264,6 +1274,7 @@ function buildManualReceipt() {
     currency: $("#receiptCurrency").value,
     name: $("#manualName").value.trim() || "Dinner",
     date: $("#manualDate").value || new Date().toISOString().slice(0, 10),
+    paidBy: $("#paidBy").value,
     description: $("#manualDescription").value.trim(),
     source: "manual",
     imageDataUrl: manualAttachmentDataUrl,
@@ -1335,8 +1346,8 @@ function renderAssignment() {
   syncReviewFields();
   renderReviewSummary();
   $("#itemizeTitle").textContent = itemizeStage === "confirm" ? "Confirm items" : parsedReceipt.name || "Receipt";
-  $("#itemizeKicker").textContent = itemizeStage === "confirm" ? "Smart scan by AI" : "Receipt total";
-  $("#screen-itemize .back-button").dataset.screen = itemizeStage === "assign" ? "split-choice" : "home";
+  $("#itemizeKicker").textContent = itemizeStage === "confirm" ? (parsedReceipt.source === "manual" ? "Review expense" : "Smart scan by AI") : "Receipt total";
+  $("#screen-itemize .back-button").dataset.screen = itemizeStage === "assign" ? "split-choice" : parsedReceipt.source === "manual" ? "manual" : "home";
   renderReceiptTotals();
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} people`;
@@ -1358,7 +1369,8 @@ function renderAssignment() {
   $(".split-methods").classList.add("hidden");
   $("#claimRemaining").classList.toggle("hidden", itemizeStage !== "assign" || splitMode !== "items");
   updateClaimRemainingButton();
-  $("#addParsedItem").classList.toggle("hidden", itemizeStage !== "confirm");
+  $("#addParsedItem").classList.toggle("hidden", itemizeStage !== "confirm" || parsedReceipt.source === "manual");
+  $("#editManualItems").classList.toggle("hidden", itemizeStage !== "confirm" || parsedReceipt.source !== "manual");
   renderEvenPeopleList();
   renderAmountSplitList();
 
@@ -1405,6 +1417,7 @@ function itemRowMarkup(item, covered) {
 }
 
 function confirmItemRowMarkup(item) {
+  if (parsedReceipt?.source === "manual") return confirmStaticItemRowMarkup(item);
   const quantity = itemQuantity(item);
   const currency = parsedReceipt.currency;
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
@@ -1433,6 +1446,23 @@ function confirmItemRowMarkup(item) {
           `;
 }
 
+function confirmStaticItemRowMarkup(item) {
+  const quantity = itemQuantity(item);
+  const currency = parsedReceipt.currency;
+  const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
+  return `
+            <article class="confirm-item-card readonly-confirm">
+              <div class="confirm-item-head">
+                <strong>${escapeHtml(item.name)}</strong>
+              </div>
+              <div class="confirm-item-body">
+                <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
+                <strong class="claim-total">${formatNative(Number(item.amount || unitPrice * quantity), currency)}</strong>
+              </div>
+            </article>
+          `;
+}
+
 function selectItemRowMarkup(item, covered) {
   const quantity = itemQuantity(item);
   const currency = parsedReceipt.currency;
@@ -1452,7 +1482,7 @@ function selectItemRowMarkup(item, covered) {
               <div class="select-item-copy">
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
-                ${activeSelected ? `<em>Covering: ${formatNative(activeShare, currency)}</em>` : ""}
+                <em class="${activeSelected ? "" : "invisible"}">Covering: ${formatNative(activeShare, currency)}</em>
               </div>
               ${
                 quantity > 1 && activeSelected
@@ -2255,19 +2285,31 @@ async function closeTrip() {
 
 async function deleteActiveTrip() {
   if (!activeGroupId || !isTripOwner()) return;
-  if (!safeConfirm("Delete this trip for everyone? This cannot be undone.")) return;
-  if (!safeConfirm("Really delete this trip and all receipts?")) return;
-  await api(`/api/admin/trips/${activeGroupId}`, { method: "DELETE", body: { password: "1234" } });
-  removeStorage(`trip-split-person-${activeGroupId}`);
-  removeStorage(`trip-split-owner-${activeGroupId}`);
+  if (!safeConfirm("Delete this trip for everyone? You can recover it later from admin.")) return;
+  if (!safeConfirm("Really delete this trip and hide it from everyone?")) return;
+  const deletedGroupId = activeGroupId;
+  try {
+    await api(`/api/admin/trips/${deletedGroupId}`, { method: "DELETE", body: { password: "1234" } });
+  } catch (error) {
+    safeAlert(error.message || "Could not delete this trip.");
+    return;
+  }
+  removeStorage(`trip-split-person-${deletedGroupId}`);
+  removeStorage(`trip-split-owner-${deletedGroupId}`);
   removeStorage("trip-split-group-id");
-  saveKnownGroups(loadKnownGroups().filter((group) => group.id !== activeGroupId));
+  const remainingGroups = loadKnownGroups().filter((group) => group.id !== deletedGroupId);
+  saveKnownGroups(remainingGroups);
   activeGroupId = "";
   activePersonId = "";
   activeGroup = null;
   state = defaultState();
   render();
-  showScreen("groups");
+  if (remainingGroups.length) {
+    showScreen("groups");
+  } else {
+    if (isBrowser) window.history.pushState(null, "", "/start");
+    showStartOnboarding();
+  }
 }
 
 function leaveTrip() {
@@ -2301,7 +2343,7 @@ function signOutAccount() {
 function renderInstallScreen() {
   if (isBrowser) window.history.replaceState(null, "", "/");
   $("#installBack").classList.remove("hidden");
-  $("#installPromptText").textContent = "For the best experience, add Trip Split to your iPhone Home Screen so it opens like an app.";
+  $("#installPromptText").textContent = "For the best experience, add Split My Trip to your iPhone Home Screen so it opens like an app.";
 }
 
 async function loadAdminTrips() {
@@ -2321,7 +2363,11 @@ async function loadAdminTrips() {
                   <div class="row-name">${escapeHtml(trip.name || "Trip")}</div>
                   <div class="subtext">${escapeHtml(trip.status || "active")} · ${trip.peopleCount || 0} people · ${trip.receiptCount || 0} receipts</div>
                 </div>
-                <button class="small-primary danger-action" data-admin-delete="${trip.id}"><i data-lucide="trash-2"></i><span>Delete</span></button>
+                ${
+                  trip.status === "deleted"
+                    ? `<button class="small-primary" data-admin-restore="${trip.id}"><i data-lucide="rotate-ccw"></i><span>Recover</span></button>`
+                    : `<button class="small-primary danger-action" data-admin-delete="${trip.id}"><i data-lucide="trash-2"></i><span>Delete</span></button>`
+                }
               </article>
             `
           )
@@ -2329,6 +2375,9 @@ async function loadAdminTrips() {
       : `<div class="empty">No trips found.</div>`;
     $$("[data-admin-delete]").forEach((button) => {
       button.addEventListener("click", () => deleteAdminTrip(button.dataset.adminDelete));
+    });
+    $$("[data-admin-restore]").forEach((button) => {
+      button.addEventListener("click", () => restoreAdminTrip(button.dataset.adminRestore));
     });
     $("#adminAccountCount").textContent = String(accounts.accounts.length);
     $("#adminAccounts").innerHTML = accounts.accounts.length
@@ -2356,8 +2405,14 @@ async function loadAdminTrips() {
 }
 
 async function deleteAdminTrip(tripId) {
-  if (!safeConfirm("Delete this trip and all of its data?")) return;
+  if (!safeConfirm("Delete this trip and hide it from everyone?")) return;
   await api(`/api/admin/trips/${tripId}`, { method: "DELETE", body: { password: $("#adminPassword").value } });
+  await loadAdminTrips();
+}
+
+async function restoreAdminTrip(tripId) {
+  if (!safeConfirm("Recover this trip?")) return;
+  await api(`/api/admin/trips/${tripId}/restore`, { method: "POST", body: { password: $("#adminPassword").value } });
   await loadAdminTrips();
 }
 

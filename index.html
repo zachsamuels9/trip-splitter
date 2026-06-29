@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#09070e" />
     <meta name="screen-orientation" content="portrait" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="Trip Split" />
+    <meta name="apple-mobile-web-app-title" content="Split My Trip" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="description" content="Split trip receipts, scan itemized bills, and settle group expenses." />
-    <title>Trip Split</title>
+    <title>Split My Trip</title>
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="/icon.svg" />
     <link rel="icon" href="/favicon.ico" />
@@ -19,7 +19,7 @@
   </head>
   <body>
     <main class="shell">
-      <section class="screen active" id="screen-start">
+      <section class="screen" id="screen-start">
         <header class="flow-header">
           <button class="back-button hidden" id="startBack" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>Create trip</h1>
@@ -54,7 +54,7 @@
         </header>
         <section class="panel">
           <h2>Your trips</h2>
-          <p class="subtext">Use the email and 4-digit passcode you created for Trip Split.</p>
+          <p class="subtext">Use the email and 4-digit passcode you created for Split My Trip.</p>
           <label>
             <span>Email</span>
             <input id="accountEmail" type="email" autocomplete="email" placeholder="you@example.com" />
@@ -71,7 +71,7 @@
       <section class="screen" id="screen-home">
         <header class="home-header">
           <div>
-            <p class="eyebrow">Trip Split</p>
+            <p class="eyebrow">Split My Trip</p>
             <h1 id="homeTripTitle">Group expenses</h1>
           </div>
           <div class="header-actions">
@@ -197,14 +197,14 @@
           <h1>Add to Home Screen</h1>
         </header>
         <section class="receipt-card">
-          <p>Trip Split is ready</p>
+          <p>Split My Trip is ready</p>
           <strong>Save this app</strong>
-          <span id="installPromptText">For the best experience, add Trip Split to your iPhone Home Screen so it opens like an app.</span>
+          <span id="installPromptText">For the best experience, add Split My Trip to your iPhone Home Screen so it opens like an app.</span>
           <ol class="install-steps">
             <li>Tap the Share icon in Safari.</li>
             <li>Scroll down and tap “Add to Home Screen.”</li>
             <li>Tap “Add.”</li>
-            <li>Open Trip Split from the new Home Screen icon.</li>
+            <li>Open Split My Trip from the new Home Screen icon.</li>
           </ol>
           <button class="primary full" id="installNative"><i data-lucide="check"></i><span>I added it / Continue</span></button>
           <button class="primary full secondary-action" id="installHome"><i data-lucide="skip-forward"></i><span>Skip for now</span></button>
@@ -247,25 +247,25 @@
           <h2>Expense</h2>
           <div class="field-grid two">
             <label>
-              <span>Currency</span>
-              <select id="receiptCurrency">
+              <span>Currency *</span>
+              <select id="receiptCurrency" required>
                 <option value="USD">USD</option>
                 <option value="THB">THB</option>
                 <option value="VND">VND</option>
               </select>
             </label>
             <label>
-              <span>Paid by</span>
-              <select id="paidBy"></select>
+              <span>Paid by *</span>
+              <select id="paidBy" required></select>
             </label>
           </div>
             <label>
               <span>Name *</span>
-              <input id="manualName" type="text" value="Dinner" />
+              <input id="manualName" type="text" placeholder="Dinner" required />
             </label>
             <label>
-              <span>Date</span>
-              <input id="manualDate" type="date" />
+              <span>Date *</span>
+              <input id="manualDate" type="date" required />
             </label>
           <label>
             <span>Notes</span>
@@ -471,6 +471,7 @@
             <div id="coveredItemsList" class="items-list"></div>
           </details>
           <button class="small-primary full" id="addParsedItem"><i data-lucide="plus"></i><span>Add item</span></button>
+          <button class="small-primary full hidden" id="editManualItems"><i data-lucide="pencil"></i><span>Edit items</span></button>
           <div id="feesList" class="fees-list"></div>
         </section>
 
@@ -504,7 +505,7 @@
       <section class="screen" id="screen-split-choice">
         <header class="flow-header">
           <button class="back-button" data-screen="itemize" aria-label="Back"><i data-lucide="chevron-left"></i></button>
-          <h1>Smart Scan</h1>
+          <h1>Choose split</h1>
         </header>
         <section class="scan-result-card">
           <div>
