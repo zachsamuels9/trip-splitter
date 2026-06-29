@@ -69,7 +69,7 @@ button:disabled {
 }
 
 #screen-itemize {
-  padding-bottom: 96px;
+  padding-bottom: 0;
 }
 
 .screen.active {
@@ -1610,18 +1610,16 @@ textarea {
 }
 
 .sticky-actions {
-  position: fixed;
-  left: 50%;
+  position: sticky;
   bottom: max(16px, env(safe-area-inset-bottom));
   z-index: 10;
-  width: min(398px, calc(100% - 32px));
-  transform: translateX(-50%);
+  width: 100%;
+  margin-top: 18px;
 }
 
 .sticky-actions.inline-actions {
   position: static;
   width: 100%;
-  transform: none;
   margin-top: 14px;
 }
 
@@ -1956,7 +1954,7 @@ svg {
   }
 
   #screen-itemize {
-    padding-bottom: 190px;
+    padding-bottom: 0;
   }
 }
 
