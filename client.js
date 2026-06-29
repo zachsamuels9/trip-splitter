@@ -1,6 +1,7 @@
 const storeKey = "trip-split-state-v2";
 const rateKey = "trip-split-rates-v1";
 const groupsKey = "trip-split-known-groups-v1";
+const deletedGroupsKey = "trip-split-deleted-groups-v1";
 const accountEmailKey = "trip-split-account-email";
 const iosInstallChoiceKey = "trip-split-ios-install-choice-v1";
 const supportedCurrencies = ["USD", "THB", "VND"];
@@ -25,6 +26,8 @@ let syncTimer = null;
 let installReturnScreen = "home";
 let inviteReturnScreen = "settings";
 const settingsReturnScreens = new Set();
+const navigationStack = [];
+let currentScreenName = "";
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -109,18 +112,37 @@ function loadKnownGroups() {
   const saved = readStorage(groupsKey);
   if (!saved) return [];
   try {
-    return JSON.parse(saved);
+    const deleted = new Set(loadDeletedGroupIds());
+    return JSON.parse(saved).filter((group) => group?.id && !deleted.has(group.id));
   } catch {
     return [];
   }
 }
 
 function saveKnownGroups(groups) {
-  writeStorage(groupsKey, JSON.stringify(groups));
+  const deleted = new Set(loadDeletedGroupIds());
+  writeStorage(groupsKey, JSON.stringify((groups || []).filter((group) => group?.id && !deleted.has(group.id))));
+}
+
+function loadDeletedGroupIds() {
+  const saved = readStorage(deletedGroupsKey);
+  if (!saved) return [];
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return [];
+  }
+}
+
+function forgetKnownGroup(groupId) {
+  if (!groupId) return;
+  writeStorage(deletedGroupsKey, JSON.stringify(Array.from(new Set([...loadDeletedGroupIds(), groupId]))));
+  saveKnownGroups(loadKnownGroups().filter((group) => group.id !== groupId));
 }
 
 function rememberGroup(group, personId) {
   if (!group?.id) return;
+  writeStorage(deletedGroupsKey, JSON.stringify(loadDeletedGroupIds().filter((id) => id !== group.id)));
   const groups = loadKnownGroups().filter((entry) => entry.id !== group.id);
   groups.unshift({
     id: group.id,
@@ -229,7 +251,8 @@ function bindEvents() {
       const active = $(".screen.active")?.id;
       const target = button.dataset.screen;
       if (active === "screen-settings" && ["people", "totals"].includes(target)) settingsReturnScreens.add(target);
-      showScreen(target);
+      if (button.classList.contains("back-button")) goBack(target);
+      else showScreen(target);
     });
   });
 
@@ -255,10 +278,10 @@ function bindEvents() {
     showStartOnboarding();
   });
   $("#accountSignIn").addEventListener("click", signInAccount);
-  $("#startBack").addEventListener("click", () => showScreen("groups"));
+  $("#startBack").addEventListener("click", () => goBack("groups"));
   $("#installNative").addEventListener("click", completeInstallStep);
   $("#installHome").addEventListener("click", skipInstallStep);
-  $("#installBack").addEventListener("click", () => showScreen(installReturnScreen));
+  $("#installBack").addEventListener("click", () => goBack(installReturnScreen));
   $("#showInstallHelp").addEventListener("click", () => {
     installReturnScreen = "settings";
     if (isIphoneSafari()) showInstallOrContinue(true);
@@ -354,7 +377,13 @@ function bindEvents() {
   });
 }
 
-function showScreen(name) {
+function showScreen(name, options = {}) {
+  const activeName = currentScreenName || $(".screen.active")?.id?.replace("screen-", "") || "";
+  if (!options.fromBack && !options.replace && activeName && activeName !== name) {
+    navigationStack.push(activeName);
+  }
+  if (options.resetStack) navigationStack.length = 0;
+  currentScreenName = name;
   browserDocument?.body.classList.remove("start-onboarding");
   updateBackTargets(name);
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
@@ -362,6 +391,12 @@ function showScreen(name) {
   if (name === "invite") renderInviteScreen();
   if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
+}
+
+function goBack(fallback = "home") {
+  let previous = navigationStack.pop();
+  while (previous && previous === currentScreenName) previous = navigationStack.pop();
+  showScreen(previous || fallback || "home", { fromBack: true });
 }
 
 function renderInviteScreen() {
@@ -455,7 +490,18 @@ async function initGroup() {
     applyGroup(group);
     setAppGroupUrl();
     startSync();
-  } catch {
+  } catch (error) {
+    if (/Group not found|404/i.test(error.message || "")) {
+      forgetKnownGroup(activeGroupId);
+      removeStorage("trip-split-group-id");
+      activeGroupId = "";
+      activePersonId = "";
+      activeGroup = null;
+      state = defaultState();
+      render();
+      showScreen(loadKnownGroups().length ? "groups" : "account", { resetStack: true });
+      return;
+    }
     $("#groupStatus").textContent = "Group server offline";
   }
 }
@@ -624,6 +670,12 @@ function applyGroup(group) {
 function startSync() {
   if (syncTimer) clearInterval(syncTimer);
   syncTimer = setInterval(syncGroup, 4000);
+}
+
+function stopSync() {
+  if (!syncTimer) return;
+  clearInterval(syncTimer);
+  syncTimer = null;
 }
 
 async function syncGroup() {
@@ -2318,24 +2370,26 @@ async function deleteActiveTrip() {
   if (!safeConfirm("Delete this trip for everyone? You can recover it later from admin.")) return;
   if (!safeConfirm("Really delete this trip and hide it from everyone?")) return;
   const deletedGroupId = activeGroupId;
+  stopSync();
   try {
     await api(`/api/admin/trips/${deletedGroupId}`, { method: "DELETE", body: { password: "1234" } });
   } catch (error) {
+    startSync();
     safeAlert(error.message || "Could not delete this trip.");
     return;
   }
   removeStorage(`trip-split-person-${deletedGroupId}`);
   removeStorage(`trip-split-owner-${deletedGroupId}`);
   removeStorage("trip-split-group-id");
-  const remainingGroups = loadKnownGroups().filter((group) => group.id !== deletedGroupId);
-  saveKnownGroups(remainingGroups);
+  forgetKnownGroup(deletedGroupId);
+  const remainingGroups = loadKnownGroups();
   activeGroupId = "";
   activePersonId = "";
   activeGroup = null;
   state = defaultState();
   render();
   if (remainingGroups.length) {
-    showScreen("groups");
+    showScreen("groups", { resetStack: true });
   } else {
     if (isBrowser) window.history.pushState(null, "", "/start");
     showStartOnboarding();
@@ -2352,6 +2406,7 @@ function leaveTrip() {
   activeGroupId = "";
   activeGroup = null;
   state = defaultState();
+  stopSync();
   render();
   showScreen("groups");
 }
@@ -2365,6 +2420,7 @@ function signOutAccount() {
   activeGroupId = "";
   activeGroup = null;
   state = defaultState();
+  stopSync();
   render();
   if (isBrowser) window.history.replaceState(null, "", "/");
   showScreen("account");
