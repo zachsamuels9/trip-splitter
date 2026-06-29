@@ -54,9 +54,9 @@ button:disabled {
 
 .shell {
   width: min(430px, 100%);
-  min-height: 100svh;
+  min-height: 0;
   margin: 0 auto;
-  padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  padding: max(18px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
 }
 
 .screen {
@@ -69,7 +69,7 @@ button:disabled {
 }
 
 #screen-itemize {
-  padding-bottom: 116px;
+  padding-bottom: 96px;
 }
 
 .screen.active {
@@ -825,6 +825,9 @@ textarea {
 }
 
 .claim-name-input {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
   border: 0;
   background: transparent;
@@ -872,9 +875,14 @@ textarea {
 
 .claim-total {
   color: var(--ink);
-  font-size: 22px;
+  font-size: 17px;
   font-weight: 1000;
   white-space: nowrap;
+}
+
+.confirm-item-body .claim-total {
+  grid-column: 1 / -1;
+  justify-self: end;
 }
 
 .claim-primary-stepper {
@@ -1006,15 +1014,15 @@ textarea {
 
 .confirm-item-head {
   display: grid;
-  grid-template-columns: 1fr 44px;
+  grid-template-columns: minmax(0, 1fr) 40px;
   gap: 12px;
   align-items: center;
 }
 
 .confirm-item-body {
   display: grid;
-  grid-template-columns: minmax(96px, 1fr) 116px auto;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  gap: 10px;
   align-items: end;
 }
 
@@ -1024,7 +1032,7 @@ textarea {
 
 .confirm-qty {
   display: grid;
-  grid-template-columns: 34px 42px 34px;
+  grid-template-columns: 30px 38px 30px;
   align-items: end;
   overflow: hidden;
   border: 1px solid rgba(129, 56, 244, 0.88);
@@ -1033,26 +1041,26 @@ textarea {
 }
 
 .confirm-qty button {
-  min-height: 44px;
+  min-height: 40px;
   color: #fff;
   background: transparent;
 }
 
 .confirm-qty input {
-  min-height: 44px;
+  min-height: 40px;
   border: 0;
   border-radius: 0;
   background: rgba(9, 12, 24, 0.96);
   padding: 0;
   text-align: center;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 1000;
 }
 
 .select-item-row {
   display: grid;
-  grid-template-columns: 38px minmax(0, 1fr) minmax(76px, auto);
-  gap: 12px;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(64px, auto);
+  gap: 10px;
   align-items: center;
   position: relative;
 }
@@ -1070,7 +1078,7 @@ textarea {
 
 .select-item-copy strong {
   color: var(--ink);
-  font-size: 23px;
+  font-size: 18px;
   line-height: 1.1;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -1078,7 +1086,7 @@ textarea {
 
 .select-item-copy span {
   color: var(--muted);
-  font-size: 17px;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -1091,11 +1099,11 @@ textarea {
 .scan-result-card {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  gap: 28px 18px;
+  gap: 18px 14px;
   border: 1px solid rgba(129, 56, 244, 0.55);
-  border-radius: 28px;
+  border-radius: 22px;
   background: linear-gradient(145deg, rgba(65, 31, 116, 0.92), rgba(28, 18, 52, 0.96));
-  padding: 26px;
+  padding: 20px;
   box-shadow: 0 28px 70px rgba(32, 17, 61, 0.32);
 }
 
@@ -1106,7 +1114,7 @@ textarea {
 .scan-result-card p,
 .scan-result-meta span {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 1000;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1116,20 +1124,20 @@ textarea {
   display: block;
   margin-top: 8px;
   color: #fff;
-  font-size: 40px;
+  font-size: 27px;
   line-height: 1;
   overflow-wrap: anywhere;
 }
 
 .scan-result-meta strong {
-  font-size: 30px;
+  font-size: 21px;
 }
 
 .step-label {
-  margin: 32px 0 16px;
+  margin: 24px 0 14px;
   text-align: center;
   color: var(--muted);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 1000;
 }
 

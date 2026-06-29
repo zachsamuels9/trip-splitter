@@ -908,12 +908,13 @@ function inferReceiptCurrency(receipt, text, fallback = "USD") {
   const context = [text, receipt?.merchant, ...(receipt?.lineItems || []).map((item) => `${item.name || ""} ${item.currency || ""}`)].join("\n");
   const contextCurrency = detectCurrency(context, "");
   const receiptCurrency = supportedCurrencies.includes(receipt?.currency) ? receipt.currency : "";
-  if (contextCurrency && contextCurrency !== "USD") return { currency: contextCurrency, needsReview: false };
-  if (receiptCurrency && receiptCurrency !== "USD") return { currency: receiptCurrency, needsReview: false };
+  if (contextCurrency === "USD" || receiptCurrency === "USD") return { currency: "USD", needsReview: false };
+  if (hasExplicitCurrencyCue(context, "THB") || receiptCurrency === "THB") return { currency: "THB", needsReview: false };
+  if (hasExplicitCurrencyCue(context, "VND") || receiptCurrency === "VND") return { currency: "VND", needsReview: false };
+  if (contextCurrency && contextCurrency !== "USD") return { currency: contextCurrency, needsReview: true };
   if (receiptCurrency === "USD" && /\bUSD\b|United States|Arizona|California|New York|Texas|Florida/i.test(context)) return { currency: "USD", needsReview: false };
-  if (contextCurrency === "USD" && /\bUSD\b/i.test(context)) return { currency: "USD", needsReview: false };
   const safeFallback = supportedCurrencies.includes(fallback) ? fallback : "THB";
-  return { currency: safeFallback || "THB", needsReview: safeFallback === "USD" };
+  return { currency: safeFallback || "THB", needsReview: true };
 }
 
 function parseReceipt(text, currency, meta = {}) {
@@ -1033,10 +1034,20 @@ function normalizeDateParts(year, month, day) {
 
 function detectCurrency(text, fallback = "USD") {
   const sample = text || "";
-  if (/[฿]|(?:\bTHB\b|\bBAHT\b|\bBANGKOK\b|\bPHUKET\b|\bCHIANG\s*MAI\b|\bTHAILAND\b|[\u0E00-\u0E7F]|ถนน|กรุงเทพ|บาท)/i.test(sample)) return "THB";
-  if (/[₫]|(?:\bVND\b|\bDONG\b|\bVIETNAM\b|\bVNĐ\b|\bHANOI\b|\bSAIGON\b|\bHO CHI MINH\b|đường|quận|phường|[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ])/i.test(sample)) return "VND";
-  if (/\bUSD\b/i.test(sample)) return "USD";
+  if (hasExplicitCurrencyCue(sample, "USD")) return "USD";
+  if (hasExplicitCurrencyCue(sample, "THB")) return "THB";
+  if (hasExplicitCurrencyCue(sample, "VND")) return "VND";
+  if (!/[$฿₫]/.test(sample) && /(?:\bBANGKOK\b|\bPHUKET\b|\bCHIANG\s*MAI\b|\bTHAILAND\b|[\u0E00-\u0E7F]|ถนน|กรุงเทพ)/i.test(sample)) return "THB";
+  if (!/[$฿₫]/.test(sample) && /(?:\bVIETNAM\b|\bHANOI\b|\bSAIGON\b|\bHO CHI MINH\b|đường|quận|phường|[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ])/i.test(sample)) return "VND";
   return supportedCurrencies.includes(fallback) ? fallback : "";
+}
+
+function hasExplicitCurrencyCue(text, currency) {
+  const sample = text || "";
+  if (currency === "USD") return /\$|\bUSD\b/i.test(sample);
+  if (currency === "THB") return /฿|\bTHB\b|\bBAHT\b|บาท/i.test(sample);
+  if (currency === "VND") return /₫|\bVND\b|\bVNĐ\b|\bDONG\b/i.test(sample);
+  return false;
 }
 
 function detectRestaurantName(text) {
@@ -2581,10 +2592,11 @@ function openReceiptForClaiming(receiptId) {
 function renderSettlements() {
   const settlements = calculateSettlements();
   const balance = calculateBalances()[activePersonId] || 0;
-  $("#mySettlementBalance").textContent = money.format(Math.abs(balance));
-  $("#settlementBalanceLabel").textContent = balance > 0.005 ? "Amount you should receive" : balance < -0.005 ? "Amount you owe" : "Your settlement balance";
-  $("#mySettlementHint").textContent =
-    balance > 0.005 ? "The group owes you this net amount." : balance < -0.005 ? "You owe this net amount to the group." : "You are settled up.";
+  const receiveAmount = balance > 0.005 ? balance : 0;
+  const oweAmount = balance < -0.005 ? Math.abs(balance) : 0;
+  $("#mySettlementBalance").textContent = balance > 0.005 ? money.format(receiveAmount) : balance < -0.005 ? money.format(oweAmount) : money.format(0);
+  $("#settlementBalanceLabel").textContent = balance > 0.005 ? "You should receive" : balance < -0.005 ? "You need to pay" : "Nothing left for you to settle";
+  $("#mySettlementHint").textContent = `You owe ${money.format(oweAmount)} · You are owed ${money.format(receiveAmount)}`;
   const settledIds = settledSettlementIds();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
   const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));
@@ -2604,7 +2616,7 @@ function renderSettlements() {
           `
         )
         .join("")
-      : `<div class="empty">Everyone is even once receipts are added and assigned.</div>`,
+      : `<div class="empty">No active payments due. Net settlement is ${money.format(0)}.</div>`,
     archived.length
       ? `<details class="settled-archive"><summary>Settled archive (${archived.length})</summary>${archived
           .map(
