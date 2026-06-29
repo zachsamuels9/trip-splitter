@@ -28,6 +28,7 @@ let inviteReturnScreen = "settings";
 const settingsReturnScreens = new Set();
 const navigationStack = [];
 let currentScreenName = "";
+let accountProfile = null;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -80,10 +81,7 @@ function loadState() {
 
 function defaultState() {
   return {
-    people: [
-      { id: createId(), name: "You" },
-      { id: createId(), name: "Friend" },
-    ],
+    people: [],
     receipts: [],
   };
 }
@@ -417,6 +415,8 @@ function updateBackTargets(name) {
     const button = $(`#screen-${screenName} .back-button`);
     if (button) button.dataset.screen = settingsReturnScreens.has(screenName) ? "settings" : "home";
   });
+  const groupsBack = $("#screen-groups .back-button");
+  if (groupsBack) groupsBack.classList.toggle("hidden", !activeGroupId || !activePersonId);
   if (name === "home") settingsReturnScreens.clear();
 }
 
@@ -711,6 +711,7 @@ async function signInAccount() {
       method: "POST",
       body: { email, passcode },
     });
+    accountProfile = result.account || null;
     writeStorage(accountEmailKey, email);
     saveKnownGroups(
       (result.trips || []).map((trip) => ({
@@ -727,7 +728,7 @@ async function signInAccount() {
       activeGroup = null;
       state = defaultState();
       render();
-      showScreen("groups");
+      showScreen("groups", { resetStack: true });
       return;
     }
     activeGroupId = firstTrip.id;
@@ -1464,6 +1465,9 @@ function renderAssignment() {
   $$("[data-split-item]").forEach((button) => {
     button.addEventListener("click", () => splitSingleItem(button.dataset.splitItem));
   });
+  $$("[data-share-person]").forEach((button) => {
+    button.addEventListener("click", () => toggleItemSharePerson(button.dataset.shareItem, button.dataset.sharePerson));
+  });
   makeIcons();
   updateSelectionBar();
 }
@@ -1530,6 +1534,8 @@ function selectItemRowMarkup(item, covered) {
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
   const activeShare = itemShareForPerson(item, activePerson);
   const canSplitSingle = quantity === 1 && state.people.length > 1;
+  const assignedPeople = (item.assignedTo || []).filter((personId) => state.people.some((person) => person.id === personId));
+  const shareSummary = assignedPeople.length > 1 ? `Split ${assignedPeople.length} ways` : activeSelected ? `Covering ${formatNative(activeShare, currency)}` : "Tap to claim";
   return `
             <article class="select-item-row ${activeSelected ? "selected" : ""}">
               ${covered ? `<div class="covered-label">Already covered - tap to edit</div>` : ""}
@@ -1540,8 +1546,22 @@ function selectItemRowMarkup(item, covered) {
               <div class="select-item-copy">
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
-                <em class="${activeSelected ? "" : "invisible"}">Covering: ${formatNative(activeShare, currency)}</em>
-                ${canSplitSingle ? `<button type="button" class="inline-split" data-split-item="${item.id}">Split item</button>` : ""}
+                <em>${shareSummary}</em>
+                ${
+                  canSplitSingle
+                    ? `<div class="share-chip-row" aria-label="Split ${escapeHtml(item.name)}">
+                        ${state.people
+                          .map(
+                            (person) => `
+                              <button type="button" class="${assignedPeople.includes(person.id) ? "active" : ""}" data-share-item="${item.id}" data-share-person="${person.id}">
+                                ${escapeHtml(initials(person.name))}
+                              </button>
+                            `
+                          )
+                          .join("")}
+                      </div>`
+                    : ""
+                }
               </div>
               <div class="claim-action-slot">
                 ${
@@ -1866,6 +1886,18 @@ function splitSingleItem(itemId) {
   const splitCount = Math.min(maxPeople, Math.max(2, Math.floor(requested || 2)));
   const otherPeople = state.people.map((person) => person.id).filter((id) => id && id !== activePerson);
   item.assignedTo = [activePerson, ...otherPeople.slice(0, splitCount - 1)];
+  item.claims = {};
+  renderAssignment();
+}
+
+function toggleItemSharePerson(itemId, personId) {
+  if (!parsedReceipt || !personId) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === itemId);
+  if (!item || itemQuantity(item) !== 1) return;
+  const assigned = new Set(item.assignedTo || []);
+  if (assigned.has(personId)) assigned.delete(personId);
+  else assigned.add(personId);
+  item.assignedTo = Array.from(assigned);
   item.claims = {};
   renderAssignment();
 }
@@ -2800,15 +2832,15 @@ function markSettlement(id, settled) {
 function renderSummary() {
   $("#tripTotal").textContent = money.format(sum(state.receipts.map((receipt) => receipt.totalUsd)));
   $("#receiptCount").textContent = `${state.receipts.length}`;
-  const personId = activePersonId || state.people[0]?.id;
+  const personId = activePersonId && state.people.some((person) => person.id === activePersonId) ? activePersonId : "";
   const person = findPerson(personId);
   const totals = personId ? personTotals(personId) : { owed: 0 };
-  $("#loggedInAs").textContent = person ? `Logged in as ${person.name}` : "Not signed in";
+  $("#loggedInAs").textContent = person ? `Logged in as ${person.name}` : accountProfile?.email ? `Signed in as ${accountProfile.email}` : "Not signed in";
   $("#personalTotal").textContent = `My share ${money.format(totals.owed)}`;
 }
 
 function renderExpenses() {
-  const personId = activePersonId || state.people[0]?.id;
+  const personId = activePersonId && state.people.some((person) => person.id === activePersonId) ? activePersonId : "";
   const person = findPerson(personId);
   const openExpenseIds = new Set($$("#expensesList [data-expense-details][open]").map((details) => details.dataset.expenseDetails));
   const rows = [];
@@ -2949,6 +2981,12 @@ function possessive(name) {
   const clean = String(name || "Your").trim();
   if (!clean || clean.toLowerCase() === "your") return "Your";
   return `${clean}${clean.endsWith("s") ? "'" : "'s"}`;
+}
+
+function initials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "?";
+  return (parts.length === 1 ? parts[0].slice(0, 2) : `${parts[0][0]}${parts[parts.length - 1][0]}`).toUpperCase();
 }
 
 function completeInstallStep() {

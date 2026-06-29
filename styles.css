@@ -173,8 +173,10 @@ h2 {
 }
 
 .counter-button {
-  display: block;
+  display: grid;
+  place-items: center;
   min-width: 78px;
+  min-height: 58px;
   margin-top: 10px;
   border-radius: 16px;
   background: rgba(9, 7, 14, 0.34);
@@ -1096,7 +1098,7 @@ textarea {
   gap: 12px;
   align-items: center;
   position: relative;
-  min-height: 112px;
+  min-height: 142px;
 }
 
 .select-item-row.selected {
@@ -1129,10 +1131,7 @@ textarea {
   color: var(--cyan);
   font-style: normal;
   font-weight: 1000;
-}
-
-.select-item-copy em.invisible {
-  visibility: hidden;
+  min-height: 20px;
 }
 
 .claim-action-slot {
@@ -1140,6 +1139,33 @@ textarea {
   justify-items: end;
   align-items: center;
   min-height: 40px;
+}
+
+.share-chip-row {
+  display: flex;
+  gap: 6px;
+  min-height: 30px;
+  overflow-x: auto;
+  padding-top: 2px;
+}
+
+.share-chip-row button {
+  width: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  border: 1px solid #25314d;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  padding: 0;
+  font-size: 11px;
+  font-weight: 1000;
+}
+
+.share-chip-row button.active {
+  border-color: rgba(47, 208, 233, 0.75);
+  background: rgba(47, 208, 233, 0.18);
+  color: var(--cyan);
 }
 
 .claim-action-slot .invisible {
