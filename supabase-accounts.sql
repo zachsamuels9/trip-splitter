@@ -10,9 +10,17 @@ create table if not exists accounts (
 alter table participants
   add column if not exists account_id uuid references accounts(id) on delete set null;
 
+alter table trips
+  add column if not exists owner_account_id uuid references accounts(id) on delete set null,
+  add column if not exists owner_participant_id uuid references participants(id) on delete set null;
+
 create index if not exists participants_account_id_idx
   on participants (account_id)
   where account_id is not null;
 
 create index if not exists accounts_email_passcode_idx
   on accounts (lower(email), passcode_hash);
+
+create index if not exists trips_owner_account_id_idx
+  on trips (owner_account_id)
+  where owner_account_id is not null;

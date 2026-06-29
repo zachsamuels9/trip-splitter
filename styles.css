@@ -183,6 +183,12 @@ h2 {
   color: var(--ink);
 }
 
+.counter-button strong {
+  display: block;
+  margin: 0;
+  line-height: 1;
+}
+
 .hero-card,
 .receipt-card {
   display: grid;
@@ -253,6 +259,11 @@ h2 {
   color: var(--muted);
   font-size: 12px;
   font-weight: 900;
+}
+
+.quick-nav button:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
 }
 
 .quick-nav.trip-closed {
@@ -351,11 +362,16 @@ textarea {
   min-width: 0;
 }
 
-.home-actions,
 .scan-buttons,
 .sticky-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -499,6 +515,18 @@ textarea {
   margin-top: 12px;
 }
 
+.receipt-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.receipt-row-actions .receipt-open,
+.receipt-row-actions .history-thumb {
+  margin-top: 0;
+}
+
 .receipt-open svg {
   flex: 0 0 auto;
 }
@@ -534,6 +562,14 @@ textarea {
   grid-template-columns: 42px 1fr;
   align-items: start;
   gap: 14px;
+}
+
+.receipt-tip-entry {
+  gap: 10px;
+}
+
+.receipt-tip-panel .subtext {
+  margin-top: 14px;
 }
 
 .scan-steps {
@@ -1094,16 +1130,17 @@ textarea {
 
 .select-item-row {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr) 104px;
+  grid-template-columns: minmax(0, 1fr) 104px;
   gap: 12px;
   align-items: center;
   position: relative;
   min-height: 142px;
+  cursor: pointer;
 }
 
 .select-item-row.selected {
   border-color: rgba(129, 56, 244, 0.68);
-  box-shadow: inset 4px 0 0 var(--purple);
+  box-shadow: 0 0 0 1px rgba(129, 56, 244, 0.58);
 }
 
 .select-item-copy {

@@ -392,9 +392,12 @@
             <h2>Tip</h2>
             <span>Add after receipt</span>
           </div>
-          <label>
+          <label class="receipt-tip-entry">
             <span>Tip amount</span>
-            <input id="reviewTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+            <div class="currency-input">
+              <em id="reviewTipSymbol">$</em>
+              <input id="reviewTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+            </div>
           </label>
           <p class="subtext">Use this for handwritten or after-payment tips. Leave it blank if tip is already itemized.</p>
         </section>

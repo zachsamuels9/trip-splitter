@@ -546,6 +546,7 @@ async function createGroupFromValues(rawName, rawPersonName, nextScreen, account
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     writeStorage(`trip-split-owner-${activeGroupId}`, activePersonId);
     writeStorage(accountEmailKey, email);
+    accountProfile = result.account || { email, name: personName };
     setAppGroupUrl();
     applyGroup(result.group);
     rememberGroup(result.group, activePersonId);
@@ -582,6 +583,7 @@ async function joinGroup(event) {
     writeStorage("trip-split-group-id", activeGroupId);
     writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
     writeStorage(accountEmailKey, email);
+    accountProfile = result.account || { email, name };
     applyGroup(result.group);
     rememberGroup(result.group, activePersonId);
     startSync();
@@ -1438,8 +1440,8 @@ function renderAssignment() {
 
   renderFeesList();
 
-  $$("[data-item]").forEach((box) => {
-    box.addEventListener("change", () => updateItemPersonSelection(box));
+  $$("[data-claim-row]").forEach((row) => {
+    row.addEventListener("click", () => toggleClaimRow(row.dataset.claimRow));
   });
   $$("[data-delete-item]").forEach((button) => {
     button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
@@ -1460,13 +1462,19 @@ function renderAssignment() {
     button.addEventListener("click", () => stepConfirmQuantity(button.dataset.editQtyStep, Number(button.dataset.delta || 0)));
   });
   $$("[data-claim-adjust]").forEach((button) => {
-    button.addEventListener("click", () => adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0)));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      adjustItemClaim(button.dataset.claimAdjust, button.dataset.person, Number(button.dataset.delta || 0));
+    });
   });
   $$("[data-split-item]").forEach((button) => {
     button.addEventListener("click", () => splitSingleItem(button.dataset.splitItem));
   });
   $$("[data-share-person]").forEach((button) => {
-    button.addEventListener("click", () => toggleItemSharePerson(button.dataset.shareItem, button.dataset.sharePerson));
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      toggleItemSharePerson(button.dataset.shareItem, button.dataset.sharePerson);
+    });
   });
   makeIcons();
   updateSelectionBar();
@@ -1528,7 +1536,6 @@ function selectItemRowMarkup(item, covered) {
   const quantity = itemQuantity(item);
   const currency = parsedReceipt.currency;
   const activePerson = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id || "";
-  const activeName = findPerson(activePerson)?.name || "you";
   const activeSelected = Boolean(activePerson && item.assignedTo?.includes(activePerson));
   const activeClaim = itemClaimQuantity(item, activePerson);
   const unitPrice = Number(item.unitPrice || (quantity ? Number(item.amount || 0) / quantity : item.amount) || 0);
@@ -1537,12 +1544,8 @@ function selectItemRowMarkup(item, covered) {
   const assignedPeople = (item.assignedTo || []).filter((personId) => state.people.some((person) => person.id === personId));
   const shareSummary = assignedPeople.length > 1 ? `Split ${assignedPeople.length} ways` : activeSelected ? `Covering ${formatNative(activeShare, currency)}` : "Tap to claim";
   return `
-            <article class="select-item-row ${activeSelected ? "selected" : ""}">
+            <article class="select-item-row ${activeSelected ? "selected" : ""}" data-claim-row="${item.id}">
               ${covered ? `<div class="covered-label">Already covered - tap to edit</div>` : ""}
-              <label class="claim-check" aria-label="Select ${escapeHtml(item.name)} for ${escapeHtml(activeName)}">
-                <input type="checkbox" data-item="${item.id}" data-person="${activePerson}" ${activeSelected ? "checked" : ""}>
-                <span></span>
-              </label>
               <div class="select-item-copy">
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
@@ -1587,6 +1590,7 @@ function syncReviewFields() {
   setReviewValue("reviewDate", parsedReceipt.date || "");
   setReviewValue("reviewNotes", parsedReceipt.description || "");
   setReviewValue("reviewTip", adjustmentAmount("tip"));
+  $("#reviewTipSymbol").textContent = currencySymbol(parsedReceipt.currency || "USD");
   setReviewValue("reviewTax", adjustmentAmount("tax"));
   setReviewValue("reviewFees", adjustmentAmount("fees"));
   setReviewValue("reviewDiscount", parsedReceipt.discount || 0);
@@ -1820,27 +1824,38 @@ function updateAmountRemaining() {
 
 function collectAssignmentChoices() {
   if (!parsedReceipt) return;
-  const activePerson = activePersonId || $("#reviewPaidBy").value;
   parsedReceipt.items.forEach((item) => {
     const quantity = itemQuantity(item);
-    const checkedPeople = $$(`input[data-item="${item.id}"]:checked`).map((box) => box.dataset.person).filter(Boolean);
-    const preservedPeople = (item.assignedTo || []).filter((personId) => personId && personId !== activePerson && !$(`input[data-item="${item.id}"][data-person="${personId}"]`));
     if (quantity > 1) {
-      const claims = { ...(item.claims || {}) };
-      Object.keys(claims).forEach((personId) => {
-        if (personId === activePerson && !checkedPeople.includes(personId)) delete claims[personId];
-      });
-      checkedPeople.forEach((personId) => {
-        const claim = Math.max(0, Math.floor(Number(item.claims?.[personId] || 0)));
-        if (claim > 0) claims[personId] = claim;
-      });
-      item.claims = clampClaims({ ...item, claims });
+      item.claims = clampClaims(item);
       item.assignedTo = Object.keys(item.claims);
     } else {
-      item.assignedTo = Array.from(new Set([...preservedPeople, ...checkedPeople]));
+      item.assignedTo = Array.from(new Set(item.assignedTo || []));
       item.claims = {};
     }
   });
+}
+
+function toggleClaimRow(itemId) {
+  if (!parsedReceipt) return;
+  const personId = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id;
+  if (!personId) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+  if (itemQuantity(item) > 1) {
+    const claims = { ...(item.claims || {}) };
+    if (claims[personId]) delete claims[personId];
+    else claims[personId] = 1;
+    item.claims = clampClaims({ ...item, claims });
+    item.assignedTo = Object.keys(item.claims);
+  } else {
+    const assigned = new Set(item.assignedTo || []);
+    if (assigned.has(personId)) assigned.delete(personId);
+    else assigned.add(personId);
+    item.assignedTo = Array.from(assigned);
+    item.claims = {};
+  }
+  renderAssignment();
 }
 
 function updateItemPersonSelection(box) {
@@ -2625,7 +2640,11 @@ function renderPeople() {
 }
 
 function isTripOwner() {
-  return Boolean(activeGroupId && activePersonId && readStorage(`trip-split-owner-${activeGroupId}`) === activePersonId);
+  if (!activeGroupId || !activePersonId) return false;
+  if (activeGroup?.ownerParticipantId && activeGroup.ownerParticipantId === activePersonId) return true;
+  if (activeGroup?.ownerAccountId && accountProfile?.id && activeGroup.ownerAccountId === accountProfile.id) return true;
+  if (!activeGroup?.ownerParticipantId && !activeGroup?.ownerAccountId && state.people[0]?.id === activePersonId) return true;
+  return readStorage(`trip-split-owner-${activeGroupId}`) === activePersonId;
 }
 
 function removePerson(personId) {
@@ -2687,12 +2706,14 @@ function renderHistory() {
                 <div class="money">${money.format(receipt.totalUsd)}</div>
               </div>
               <div class="subtext">Original ${formatNative(receipt.totalNative, receipt.currency)} · ${formatRate(receipt.currency, receipt.rateUsed)}</div>
-              ${receipt.imageDataUrl ? `<button class="receipt-thumb history-thumb" data-preview-receipt="${receipt.id}" aria-label="Open ${escapeHtml(receipt.name || "Receipt")} photo"><img src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" /></button>` : ""}
-              ${
-                receipt.splitMode === "items"
-                  ? `<button class="small-primary receipt-open" data-open-receipt="${receipt.id}"><i data-lucide="list-checks"></i><span>${isPendingReceipt(receipt) ? "Split now" : "Edit items"}</span></button>`
-                  : ""
-              }
+              <div class="receipt-row-actions">
+                ${receipt.imageDataUrl ? `<button class="receipt-thumb history-thumb" data-preview-receipt="${receipt.id}" aria-label="Open ${escapeHtml(receipt.name || "Receipt")} photo"><img src="${receipt.imageDataUrl}" alt="${escapeHtml(receipt.name || "Receipt")} photo" loading="lazy" /></button>` : ""}
+                ${
+                  receipt.splitMode === "items"
+                    ? `<button class="small-primary receipt-open" data-open-receipt="${receipt.id}"><i data-lucide="list-checks"></i><span>${isPendingReceipt(receipt) ? "Split now" : "Edit items"}</span></button>`
+                    : ""
+                }
+              </div>
             </article>
           `;
         })
@@ -2715,12 +2736,11 @@ function renderPendingReceipts() {
   $("#pendingList").innerHTML = pending.length
     ? pending
         .map((receipt) => {
-          const payer = findPerson(receipt.paidBy)?.name || "Someone";
           return `
             <article class="pending-row">
               <div>
                 <div class="row-name">${escapeHtml(receipt.name || "Receipt")}</div>
-                <div class="subtext">${payer} paid ${formatNative(receipt.totalNative, receipt.currency)} · ${unassignedItemCount(receipt)} items left</div>
+                <div class="subtext">${unassignedItemCount(receipt)} item${unassignedItemCount(receipt) === 1 ? "" : "s"} left</div>
               </div>
               <button class="small-primary" data-open-pending="${receipt.id}"><i data-lucide="list-checks"></i><span>Split</span></button>
             </article>
@@ -2774,6 +2794,7 @@ function renderSettlements() {
   const settledIds = settledSettlementIds();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
   const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));
+  updateSettleNavState(active.length);
   $("#settlementList").innerHTML = [
     active.length
       ? active
@@ -2810,6 +2831,14 @@ function renderSettlements() {
   ].join("");
   $$("[data-settle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.settle, true)));
   $$("[data-unsettle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.unsettle, false)));
+}
+
+function updateSettleNavState(activeSettlementCount) {
+  const button = $('.quick-nav button[data-screen="settle"]');
+  if (!button) return;
+  const closed = isTripClosed();
+  button.disabled = Boolean(closed && activeSettlementCount === 0);
+  button.querySelector("span").textContent = closed && activeSettlementCount === 0 ? "All settled" : "Settle";
 }
 
 function settledSettlementIds() {
