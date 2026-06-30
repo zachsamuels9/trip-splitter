@@ -2640,19 +2640,27 @@ async function deleteActiveTrip() {
   }
 }
 
-function leaveTrip() {
+async function leaveTrip() {
   if (!activeGroupId || !activePersonId) return;
-  if (!safeConfirm("Leave this trip on this device?")) return;
-  if (!safeConfirm("Are you sure? You will need the invite link to rejoin.")) return;
-  removeStorage(`trip-split-person-${activeGroupId}`);
+  if (!safeConfirm("Leave this trip? You will be removed from the trip for everyone and will need an invite link to rejoin.")) return;
+  const leavingGroupId = activeGroupId;
+  const leavingPersonId = activePersonId;
+  try {
+    await api(`/api/groups/${leavingGroupId}/people/${leavingPersonId}`, { method: "DELETE" });
+  } catch (error) {
+    safeAlert(error.message || "Could not leave this trip.");
+    return;
+  }
+  removeStorage(`trip-split-person-${leavingGroupId}`);
   removeStorage("trip-split-group-id");
+  forgetKnownGroup(leavingGroupId);
   activePersonId = "";
   activeGroupId = "";
   activeGroup = null;
   state = defaultState();
   stopSync();
   render();
-  showScreen("groups");
+  showScreen(loadKnownGroups().length ? "groups" : "account", { resetStack: true });
 }
 
 function signOutAccount() {

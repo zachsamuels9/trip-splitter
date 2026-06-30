@@ -1,9 +1,9 @@
-const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, reopenGroup, resetTrip, upsertReceipt } = require("../../lib/group-store");
+const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, reopenGroup, removePerson, resetTrip, upsertReceipt } = require("../../lib/group-store");
 
 module.exports = async function handler(req, res) {
   try {
     const parts = Array.isArray(req.query.path) ? req.query.path : [];
-    const [groupId, child] = parts;
+    const [groupId, child, personId] = parts;
     if (!groupId) {
       if (req.method === "POST") {
         const result = await createGroup(parseBody(req.body));
@@ -23,6 +23,12 @@ module.exports = async function handler(req, res) {
     if (req.method === "POST" && child === "people") {
       const result = await addPerson(groupId, req.body?.name, req.body || {});
       res.status(201).json(result);
+      return;
+    }
+
+    if (req.method === "DELETE" && child === "people" && personId) {
+      const result = await removePerson(groupId, personId);
+      res.status(200).json(result);
       return;
     }
 

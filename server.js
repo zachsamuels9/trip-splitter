@@ -12,6 +12,7 @@ const {
   listTrips,
   publicGroup,
   reopenGroup,
+  removePerson,
   resetTrip,
   restoreTrip,
   signInAccount,
@@ -174,7 +175,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen|reset))?$/);
+  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen|reset)(?:\/([^/]+))?)?$/);
   if (!groupMatch) {
     sendJson(res, 404, { error: "Not found" });
     return;
@@ -190,6 +191,12 @@ async function handleApi(req, res, url) {
     const body = await readBody(req);
     const result = await addPerson(groupMatch[1], body.name, body);
     sendJson(res, 201, result);
+    return;
+  }
+
+  if (req.method === "DELETE" && groupMatch[2] === "people" && groupMatch[3]) {
+    const result = await removePerson(groupMatch[1], groupMatch[3]);
+    sendJson(res, 200, result);
     return;
   }
 
