@@ -861,6 +861,17 @@ textarea {
   margin: 0;
 }
 
+.ocr-setup-empty {
+  display: grid;
+  gap: 10px;
+  line-height: 1.35;
+}
+
+.ocr-setup-empty code {
+  color: var(--ink);
+  font-weight: 1000;
+}
+
 .fee-row > span,
 .row-head > div,
 .history-row,

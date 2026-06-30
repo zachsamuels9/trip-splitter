@@ -2646,8 +2646,20 @@ async function loadAdminOcrUsage(password = $("#adminPassword").value) {
     const ocrUsage = await api(`/api/admin/ocr-usage?password=${encodeURIComponent(password)}`);
     renderOcrUsageSummary(ocrUsage.usage, $("#adminOcrMonth"), $("#adminOcrUsage"));
   } catch (error) {
-    $("#adminOcrUsage").innerHTML = `<div class="empty">${escapeHtml(readApiError(error) || "OCR usage is unavailable.")}</div>`;
+    renderOcrUsageError(readApiError(error));
   }
+}
+
+function renderOcrUsageError(message = "") {
+  const setupRequired = /not set up|supabase-ocr-usage\.sql|ocr_usage/i.test(message);
+  $("#adminOcrUsage").innerHTML = setupRequired
+    ? `
+        <div class="empty ocr-setup-empty">
+          <strong>OCR usage tracking needs setup</strong>
+          <span>Run <code>supabase-ocr-usage.sql</code> in Supabase, then refresh this panel.</span>
+        </div>
+      `
+    : `<div class="empty">${escapeHtml(message || "OCR usage is unavailable.")}</div>`;
 }
 
 function renderOcrUsageSummary(usage, monthEl, targetEl) {
