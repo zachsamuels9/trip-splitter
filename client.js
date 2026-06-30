@@ -345,6 +345,7 @@ function bindEvents() {
   });
   $("#manualAttachmentButton").addEventListener("click", () => $("#manualAttachment")?.click());
   $("#manualAttachment").addEventListener("change", storeManualAttachment);
+  $("#reviewAttachmentButton").addEventListener("click", () => $("#reviewAttachment")?.click());
   $("#reviewAttachment").addEventListener("change", storeReviewAttachment);
   $("#addManualItem").addEventListener("click", () => addManualItem());
   $("#claimRemaining").addEventListener("click", claimAllRemaining);
@@ -1321,6 +1322,7 @@ async function storeManualAttachment(event) {
   const file = event.target.files?.[0];
   manualAttachmentDataUrl = file ? await fileToDataUrl(file) : "";
   $("#manualAttachmentStatus").textContent = file ? file.name || "Attachment added" : "Tap to add attachment";
+  $("#manualAttachmentButton").classList.toggle("has-attachment", Boolean(file));
 }
 
 async function storeReviewAttachment(event) {
@@ -1328,6 +1330,8 @@ async function storeReviewAttachment(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   parsedReceipt.imageDataUrl = await fileToDataUrl(file);
+  $("#reviewAttachmentStatus").textContent = file.name || "Attachment added";
+  $("#reviewAttachmentButton").classList.add("has-attachment");
   renderAssignment();
 }
 
@@ -1477,6 +1481,7 @@ function buildManualReceipt() {
   manualAttachmentDataUrl = "";
   $("#manualAttachment").value = "";
   $("#manualAttachmentStatus").textContent = "Tap to add attachment";
+  $("#manualAttachmentButton").classList.remove("has-attachment");
   showConfirmItems();
 }
 
@@ -1741,9 +1746,12 @@ function syncReviewFields() {
   setReviewValue("reviewNotes", parsedReceipt.description || "");
   setReviewValue("reviewTip", adjustmentAmount("tip"));
   $("#reviewTipSymbol").textContent = currencySymbol(parsedReceipt.currency || "USD");
+  updateReviewAdjustmentSymbols();
   setReviewValue("reviewTax", adjustmentAmount("tax"));
   setReviewValue("reviewFees", adjustmentAmount("fees"));
   setReviewValue("reviewDiscount", parsedReceipt.discount || 0);
+  $("#reviewAttachmentStatus").textContent = parsedReceipt.imageDataUrl ? "Attachment added" : "Tap to add attachment";
+  $("#reviewAttachmentButton").classList.toggle("has-attachment", Boolean(parsedReceipt.imageDataUrl));
 }
 
 function renderReceiptTotals() {
@@ -1806,6 +1814,13 @@ function updateParsedCurrency() {
   parsedReceipt.currency = $("#reviewCurrency").value;
   parsedReceipt.currencyNeedsReview = false;
   renderAssignment();
+}
+
+function updateReviewAdjustmentSymbols() {
+  const symbol = currencySymbol(parsedReceipt?.currency || $("#reviewCurrency")?.value || "USD");
+  $$(".review-adjustment-symbol").forEach((item) => {
+    item.textContent = symbol;
+  });
 }
 
 function confirmReviewCurrency() {

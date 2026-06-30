@@ -357,29 +357,42 @@ textarea {
   font-size: 18px;
 }
 
+input::placeholder,
+textarea::placeholder {
+  color: rgba(247, 245, 255, 0.38);
+  opacity: 1;
+}
+
 #screen-manual input,
-#screen-manual select {
+#screen-manual select,
+.receipt-details input,
+.receipt-details select {
   min-height: 60px;
 }
 
 #screen-manual select,
 #receiptCurrency,
-#paidBy {
+#paidBy,
+#reviewCurrency,
+#reviewPaidBy {
   height: 60px;
   line-height: 60px;
   appearance: none;
   -webkit-appearance: none;
 }
 
-#manualDate {
+#manualDate,
+#reviewDate {
   text-align: left;
 }
 
-#manualDate::-webkit-date-and-time-value {
+#manualDate::-webkit-date-and-time-value,
+#reviewDate::-webkit-date-and-time-value {
   text-align: left;
 }
 
-#manualAttachment {
+#manualAttachment,
+#reviewAttachment {
   display: none;
 }
 
@@ -392,11 +405,15 @@ textarea {
   border: 1px solid #111525;
   border-radius: 16px;
   background: var(--field);
-  color: rgba(247, 245, 255, 0.42);
+  color: rgba(247, 245, 255, 0.38);
   padding: 0 16px;
-  font-size: 17px;
+  font-size: 18px;
   font-weight: 400;
   text-align: left;
+}
+
+.attachment-field.has-attachment {
+  color: var(--ink);
 }
 
 .attachment-field span {
@@ -997,6 +1014,21 @@ textarea {
 
 .receipt-details[open] summary {
   margin-bottom: 16px;
+}
+
+.review-adjustments {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.review-adjustments .tax-wide {
+  grid-column: 1 / -1;
+}
+
+.review-adjustments label {
+  min-width: 0;
+  margin-top: 16px;
 }
 
 .detail-summary {

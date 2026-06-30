@@ -272,7 +272,7 @@
               <span id="manualAttachmentStatus">Tap to add attachment</span>
               <i data-lucide="image-up"></i>
             </button>
-            <input id="manualAttachment" type="file" accept="image/*" />
+            <input id="manualAttachment" type="file" accept="image/jpeg,image/png,image/heic,image/heif" />
           </label>
           <label>
             <span>Notes</span>
@@ -337,7 +337,7 @@
             <label class="big-action secondary-action scan-action">
               <i data-lucide="image-up"></i>
               <span>Upload photo</span>
-              <input id="receiptUpload" type="file" accept="image/*" />
+              <input id="receiptUpload" type="file" accept="image/jpeg,image/png,image/heic,image/heif" />
             </label>
           </div>
           <div class="scan-progress hidden" id="scanProgress">
@@ -438,27 +438,40 @@
             <span>Date</span>
             <input id="reviewDate" type="date" />
           </label>
-          <div class="field-grid two">
-            <label>
+          <div class="review-adjustments">
+            <label class="tax-wide">
               <span>Tax</span>
-              <input id="reviewTax" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <div class="currency-input">
+                <em class="review-adjustment-symbol">$</em>
+                <input id="reviewTax" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              </div>
             </label>
             <label>
               <span>Fees</span>
-              <input id="reviewFees" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <div class="currency-input">
+                <em class="review-adjustment-symbol">$</em>
+                <input id="reviewFees" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              </div>
             </label>
             <label>
               <span>Discount</span>
-              <input id="reviewDiscount" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              <div class="currency-input">
+                <em class="review-adjustment-symbol">$</em>
+                <input id="reviewDiscount" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
+              </div>
             </label>
           </div>
           <label>
-            <span>Notes</span>
-            <textarea id="reviewNotes" placeholder="Optional notes"></textarea>
+            <span>Attachment</span>
+            <button class="attachment-field" id="reviewAttachmentButton" type="button">
+              <span id="reviewAttachmentStatus">Tap to add attachment</span>
+              <i data-lucide="image-up"></i>
+            </button>
+            <input id="reviewAttachment" type="file" accept="image/jpeg,image/png,image/heic,image/heif" />
           </label>
           <label>
-            <span>Attachment</span>
-            <input id="reviewAttachment" type="file" accept="image/*" />
+            <span>Notes</span>
+            <textarea id="reviewNotes" placeholder="Optional notes"></textarea>
           </label>
         </details>
 
