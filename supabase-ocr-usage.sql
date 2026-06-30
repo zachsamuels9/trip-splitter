@@ -17,3 +17,55 @@ create table if not exists public.ocr_usage_settings (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+alter table public.ocr_usage_months enable row level security;
+alter table public.ocr_usage_settings enable row level security;
+
+drop policy if exists "Allow OCR usage reads" on public.ocr_usage_months;
+drop policy if exists "Allow OCR usage inserts" on public.ocr_usage_months;
+drop policy if exists "Allow OCR usage updates" on public.ocr_usage_months;
+
+create policy "Allow OCR usage reads"
+  on public.ocr_usage_months
+  for select
+  to anon, authenticated
+  using (true);
+
+create policy "Allow OCR usage inserts"
+  on public.ocr_usage_months
+  for insert
+  to anon, authenticated
+  with check (true);
+
+create policy "Allow OCR usage updates"
+  on public.ocr_usage_months
+  for update
+  to anon, authenticated
+  using (true)
+  with check (true);
+
+drop policy if exists "Allow OCR settings reads" on public.ocr_usage_settings;
+drop policy if exists "Allow OCR settings inserts" on public.ocr_usage_settings;
+drop policy if exists "Allow OCR settings updates" on public.ocr_usage_settings;
+
+create policy "Allow OCR settings reads"
+  on public.ocr_usage_settings
+  for select
+  to anon, authenticated
+  using (true);
+
+create policy "Allow OCR settings inserts"
+  on public.ocr_usage_settings
+  for insert
+  to anon, authenticated
+  with check (true);
+
+create policy "Allow OCR settings updates"
+  on public.ocr_usage_settings
+  for update
+  to anon, authenticated
+  using (true)
+  with check (true);
+
+grant select, insert, update on public.ocr_usage_months to anon, authenticated;
+grant select, insert, update on public.ocr_usage_settings to anon, authenticated;

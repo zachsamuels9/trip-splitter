@@ -31,6 +31,7 @@ let currentScreenName = "";
 let accountProfile = null;
 let settlementArchiveOpen = false;
 let expensesReturnHomeMode = false;
+let knownGroupsCleanupInFlight = false;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -285,8 +286,8 @@ function bindEvents() {
   $("#installBack").addEventListener("click", () => goBack(installReturnScreen));
   $("#showInstallHelp").addEventListener("click", () => {
     installReturnScreen = "settings";
-    if (isIphoneSafari()) showInstallOrContinue(true);
-    else safeAlert("Home Screen install guidance is only shown on iPhone Safari.");
+    if (isInstallGuideSupported()) showInstallOrContinue(true);
+    else safeAlert("Home Screen install guidance is only shown on supported iPhone browsers.");
   });
   $("#settingsInvite").addEventListener("click", () => {
     inviteReturnScreen = "settings";
@@ -303,6 +304,9 @@ function bindEvents() {
   $("#personalTotal").addEventListener("click", () => showScreen("expenses"));
   $("#expensesHome").addEventListener("click", () => showScreen("home"));
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
+  $("#webAppRefresh")?.addEventListener("click", () => {
+    if (isBrowser) window.location.reload();
+  });
   $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
   $("#deleteTrip").addEventListener("click", deleteActiveTrip);
@@ -454,10 +458,18 @@ function showStartOnboarding(returnTo = "") {
   showScreen("start");
 }
 
-function isIphoneSafari() {
+function installGuideKind() {
   if (!isBrowser) return false;
   const ua = navigator.userAgent || "";
-  return /iphone/i.test(ua) && /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+  const isIos = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!isIos) return "";
+  if (/crios/i.test(ua)) return "chrome";
+  if (/safari/i.test(ua) && !/fxios|edgios/i.test(ua)) return "safari";
+  return "";
+}
+
+function isInstallGuideSupported() {
+  return Boolean(installGuideKind());
 }
 
 function isStandaloneWebApp() {
@@ -466,7 +478,7 @@ function isStandaloneWebApp() {
 }
 
 function shouldShowIosInstallStep() {
-  return isIphoneSafari() && readStorage(iosInstallChoiceKey) !== "done";
+  return isInstallGuideSupported() && readStorage(iosInstallChoiceKey) !== "done";
 }
 
 function showInstallOrContinue(force = false) {
@@ -829,7 +841,7 @@ async function scanImage(event) {
   if (!file) return;
   prepareScanReceipt();
   showScreen("scan");
-  updateScanProgress("Reading receipt", "Uploading photo for OCR...", true);
+  updateScanProgress("Reading receipt", "Uploading photo for scan...", true);
   setScanStep("captured");
 
   try {
@@ -855,7 +867,9 @@ async function scanImage(event) {
     $("#scanStatus").textContent = "";
     showConfirmItems();
   } catch (error) {
-    updateScanProgress("Scan failed", error.message || "Could not read that photo. Try a brighter image or use manual entry.", false);
+    const message = error.message || "Could not read that photo. Try a brighter image or use manual entry.";
+    updateScanProgress("Scan failed", message, false, "failed");
+    setScanFailed(message);
   } finally {
     event.target.value = "";
   }
@@ -866,14 +880,17 @@ function openReceiptUpload() {
 }
 
 async function readReceiptText(imageDataUrl) {
-  updateScanProgress("Reading receipt", "Using server receipt OCR...", true);
+  updateScanProgress("Reading receipt", "Using server receipt scan...", true);
   setScanStep("uploaded");
   return readWithRemoteOcr(imageDataUrl);
 }
 
-function updateScanProgress(title, text, loading) {
+function updateScanProgress(title, text, loading, stateName = "") {
   $("#scanModeLabel").textContent = loading ? "Scanning" : title;
-  $("#scanProgress").classList.remove("hidden");
+  const progress = $("#scanProgress");
+  progress.classList.remove("hidden");
+  progress.classList.toggle("processing", Boolean(loading));
+  progress.classList.toggle("failed", stateName === "failed");
   $("#scanProgressTitle").textContent = title;
   $("#scanProgressText").textContent = text;
   const scanStatus = $("#scanStatus");
@@ -888,16 +905,43 @@ function setScanStep(step, completeCurrent = false) {
     const rowIndex = order.indexOf(row.dataset.scanStep);
     row.classList.toggle("done", rowIndex < activeIndex || (completeCurrent && rowIndex === activeIndex));
     row.classList.toggle("active", !completeCurrent && rowIndex === activeIndex);
+    row.classList.remove("failed");
+    row.style.order = row.classList.contains("done") ? "0" : row.classList.contains("active") ? "2" : "1";
   });
 }
 
+function setScanFailed(message) {
+  const active = $("[data-scan-step].active") || $('[data-scan-step="extracting"]');
+  $$("[data-scan-step]").forEach((row) => {
+    row.classList.remove("active");
+    if (!row.classList.contains("done")) row.style.order = "1";
+  });
+  if (active) {
+    active.classList.add("failed");
+    active.style.order = "2";
+    const label = active.querySelector("strong");
+    if (label) label.textContent = message;
+  }
+}
+
 function resetScanStatus() {
+  const scanStepLabels = {
+    captured: "Receipt captured",
+    prepared: "Preparing file",
+    compressed: "Compressing image",
+    uploaded: "Uploading",
+    extracting: "Extracting items and prices",
+  };
   $("#scanModeLabel").textContent = "Ready";
   $("#scanProgress").classList.add("hidden");
+  $("#scanProgress").classList.remove("processing", "failed");
   $("#scanProgressTitle").textContent = "Reading receipt";
   $("#scanProgressText").textContent = "Preparing image...";
   $$("[data-scan-step]").forEach((row) => {
-    row.classList.remove("done", "active");
+    row.classList.remove("done", "active", "failed");
+    row.style.order = "";
+    const label = row.querySelector("strong");
+    if (label) label.textContent = scanStepLabels[row.dataset.scanStep] || label.textContent;
   });
 }
 
@@ -1482,7 +1526,7 @@ function renderAssignment() {
   renderReceiptTotals();
   $("#pickItemsPanel h2").textContent = itemizeStage === "confirm" ? "Items" : "Select items";
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
-  $("#evenPeopleLabel").textContent = `${splitCount} people`;
+  $("#evenPeopleLabel").textContent = `${splitCount} ${splitCount === 1 ? "person" : "people"}`;
   $("#splitCount").textContent = splitCount;
   $("#increaseSplit").disabled = splitCount >= Math.max(1, state.people.length || 1);
   $("#decreaseSplit").disabled = splitCount <= 1;
@@ -1644,7 +1688,7 @@ function selectItemRowMarkup(item, covered) {
   const addDisabled = activeClaim >= maxActiveClaim ? "disabled" : "";
   return `
             <article class="select-item-row ${activeSelected ? "selected" : ""}" data-claim-row="${item.id}">
-              ${covered ? `<div class="covered-label">Already covered - tap to edit</div>` : ""}
+              ${covered ? `<div class="covered-label"><span>Covered</span><small>Tap to edit</small></div>` : ""}
               <div class="select-item-copy">
                 <strong>${escapeHtml(item.name)}</strong>
                 <span>${formatNative(unitPrice, currency)}${quantity > 1 ? ` each · Qty: ${quantity}` : ""}</span>
@@ -1727,7 +1771,7 @@ function renderReviewSummary() {
     <div><span>Name</span><strong>${escapeHtml(parsedReceipt.name || "Receipt")}</strong></div>
     <div><span>Date</span><strong>${escapeHtml(formatLongDate(parsedReceipt.date) || "Not set")}</strong></div>
     <div><span>Paid by</span><strong>${escapeHtml(payer)}</strong></div>
-    <div><span>Currency</span><strong>${currencySymbol(parsedReceipt.currency || "USD")}</strong></div>
+    <div><span>Currency</span><strong>${escapeHtml(parsedReceipt.currency || "USD")}</strong></div>
     <div><span>Tip</span><strong>${formatNative(adjustmentAmount("tip"), parsedReceipt.currency)}</strong></div>
     <div><span>Tax / fees</span><strong>${formatNative(adjustmentAmount("tax") + adjustmentAmount("fees"), parsedReceipt.currency)}</strong></div>
     <div><span>Discount</span><strong>${formatNative(parsedReceipt.discount || 0, parsedReceipt.currency)}</strong></div>
@@ -2442,7 +2486,13 @@ function render() {
   renderSummary();
   renderManualReview();
   renderExpenses();
+  renderInstallEntryPoints();
   makeIcons();
+}
+
+function renderInstallEntryPoints() {
+  $("#showInstallHelp")?.classList.toggle("hidden", !isInstallGuideSupported());
+  $("#webAppRefresh")?.classList.toggle("hidden", !isStandaloneWebApp());
 }
 
 function renderGroupUi() {
@@ -2456,6 +2506,14 @@ function renderGroupUi() {
   $(".quick-nav")?.classList.toggle("trip-closed", closed);
   $('.quick-nav button[data-screen="expenses"]')?.classList.toggle("hidden", closed);
   $("#closedBanner")?.classList.toggle("hidden", !closed);
+  if (closed) {
+    const activeSettlements = calculateSettlements().filter((settlement) => !settledSettlementIds().includes(settlement.id));
+    const complete = state.receipts.every((receipt) => !isPendingReceipt(receipt)) && activeSettlements.length === 0;
+    $("#closedBanner .section-title span").textContent = complete ? "Complete" : "Settle up";
+    $("#closedBanner .subtext").textContent = complete
+      ? "Everything is split and settled."
+      : "New expenses are locked. Finish pending splits and use Settle to close balances.";
+  }
   $("#settlementList")?.closest(".panel")?.classList.toggle("settle-focus", closed);
   $("#groupSignedOut").classList.toggle("hidden", signedIn);
   $("#groupSignedIn").classList.toggle("hidden", !signedIn);
@@ -2576,7 +2634,13 @@ function signOutAccount() {
 function renderInstallScreen() {
   if (isBrowser) window.history.replaceState(null, "", "/");
   $("#installBack").classList.remove("hidden");
+  const browserName = installGuideKind() === "chrome" ? "Chrome" : "Safari";
   $("#installPromptText").textContent = "For the best experience, add Split My Trip to your iPhone Home Screen so it opens like an app.";
+  const steps = $$("#screen-install .install-steps li");
+  if (steps[0]) steps[0].textContent = `Tap the Share icon in ${browserName}.`;
+  if (steps[1]) steps[1].textContent = 'Scroll down and tap "Add to Home Screen."';
+  if (steps[2]) steps[2].textContent = 'Tap "Add."';
+  if (steps[3]) steps[3].textContent = "Open Split My Trip from the new Home Screen icon.";
 }
 
 async function loadAdminTrips() {
@@ -2813,6 +2877,29 @@ function renderGroups() {
   $$("[data-switch-group]").forEach((button) => {
     button.addEventListener("click", () => switchGroup(button.dataset.switchGroup));
   });
+  cleanupKnownGroups(groups);
+}
+
+async function cleanupKnownGroups(groups) {
+  if (!groups.length || knownGroupsCleanupInFlight) return;
+  knownGroupsCleanupInFlight = true;
+  const removed = [];
+  try {
+    await Promise.all(
+      groups.map(async (group) => {
+        try {
+          await api(`/api/groups/${group.id}`);
+        } catch (error) {
+          if (/Group not found|404/i.test(error.message || "")) removed.push(group.id);
+        }
+      })
+    );
+    if (!removed.length) return;
+    removed.forEach(forgetKnownGroup);
+    renderGroups();
+  } finally {
+    knownGroupsCleanupInFlight = false;
+  }
 }
 
 async function switchGroup(groupId) {
@@ -2921,6 +3008,7 @@ function renderHistory() {
   $("#historyCount").textContent = `${state.receipts.length}`;
   const sortedReceipts = [...state.receipts].sort((a, b) => {
     const sort = $("#receiptSort")?.value || "entry";
+    if (sort === "total") return Number(b.totalUsd || 0) - Number(a.totalUsd || 0);
     const aDate = sort === "receipt" ? a.date || a.createdAt : a.createdAt || a.date;
     const bDate = sort === "receipt" ? b.date || b.createdAt : b.createdAt || b.date;
     return new Date(bDate || 0) - new Date(aDate || 0);
@@ -2928,14 +3016,14 @@ function renderHistory() {
   $("#historyList").innerHTML = sortedReceipts.length
     ? sortedReceipts
         .map((receipt) => {
-          const payer = findPerson(receipt.paidBy)?.name || "Unknown";
           const date = formatShortDate(receipt.date || receipt.createdAt);
+          const status = isPendingReceipt(receipt) ? "Needs splitting" : "Complete";
           return `
             <article class="history-row">
               <div class="row-head">
                 <div>
                   <div class="row-name">${escapeHtml(receipt.name || "Receipt")}</div>
-                  <div class="subtext">${payer} paid · ${date} · ${isPendingReceipt(receipt) ? "needs splitting" : receipt.splitMode === "even" ? "split evenly" : `${receipt.items.length} items`}</div>
+                  <div class="subtext">${date} · ${status}</div>
                 </div>
                 <div class="money">${money.format(receipt.totalUsd)}</div>
               </div>
@@ -3043,7 +3131,7 @@ function renderSettlements() {
           `
         )
         .join("")
-      : `<div class="empty">No active payments due. Net settlement is ${money.format(0)}.</div>`,
+      : `<div class="empty">No active payments due.</div>`,
     archived.length
       ? `<details class="settled-archive" data-settlement-archive ${settlementArchiveOpen ? "open" : ""}><summary>Settled archive (${archived.length})</summary><div class="settled-archive-list">${archived
           .map(
@@ -3135,7 +3223,7 @@ function renderExpenses() {
               </div>
               <details class="settled-archive" data-expense-details="${receipt.id}" ${openExpenseIds.has(receipt.id) ? "open" : ""}>
                 <summary>${items.length} item${items.length === 1 ? "" : "s"}</summary>
-                ${items.map((item) => `<div class="fee-row"><span>${escapeHtml(item.name)}</span><strong>${formatNative(itemShareForPerson(item, personId), receipt.currency)}</strong></div>`).join("")}
+                ${items.map((item) => `<div class="fee-row"><span>${escapeHtml(expenseItemLabel(item, personId))}</span><strong>${formatNative(itemShareForPerson(item, personId), receipt.currency)}</strong></div>`).join("")}
               </details>
             </article>
           `
@@ -3146,6 +3234,11 @@ function renderExpenses() {
   $$("[data-edit-expense]").forEach((button) => {
     button.addEventListener("click", () => openReceiptForClaiming(button.dataset.editExpense));
   });
+}
+
+function expenseItemLabel(item, personId) {
+  const claimQty = itemClaimQuantity(item, personId);
+  return `${claimQty > 1 ? `${claimQty}x ` : ""}${item.name || "Item"}`;
 }
 
 function personTotals(personId) {

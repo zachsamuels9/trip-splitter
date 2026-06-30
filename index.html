@@ -75,6 +75,9 @@
             <h1 id="homeTripTitle">Group expenses</h1>
           </div>
           <div class="header-actions">
+            <button class="icon-button hidden" id="webAppRefresh" aria-label="Refresh" title="Refresh">
+              <i data-lucide="refresh-cw"></i>
+            </button>
             <button class="icon-button" data-screen="groups" aria-label="Switch group" title="Switch group">
               <i data-lucide="chevrons-up-down"></i>
             </button>
@@ -326,7 +329,7 @@
           <div class="scan-drop" id="scanDrop" role="button" tabindex="0" aria-label="Upload receipt photo">
             <i data-lucide="receipt-text"></i>
             <strong>Use a clear, flat photo</strong>
-            <p class="subtext">Good lighting and all four receipt edges improve OCR accuracy.</p>
+            <p class="subtext">Good lighting and all four receipt edges improve scan accuracy.</p>
           </div>
           <div class="scan-buttons">
             <label class="big-action scan-action">
@@ -661,6 +664,7 @@
             <select id="receiptSort">
               <option value="entry">Entry date</option>
               <option value="receipt">Receipt date</option>
+              <option value="total">Total amount (high to low)</option>
             </select>
           </label>
           <button class="primary full secondary-action" id="downloadAllReceipts"><i data-lucide="download"></i><span>Download all receipts</span></button>

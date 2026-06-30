@@ -28,6 +28,7 @@ html {
 body {
   margin: 0;
   min-height: 100%;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 50% 16%, rgba(129, 56, 244, 0.23), transparent 240px),
     linear-gradient(180deg, #09070e 0%, #09070e 100%);
@@ -78,6 +79,10 @@ button:disabled {
 
 .screen.active {
   display: block;
+}
+
+.screen.active > :last-child {
+  margin-bottom: 0;
 }
 
 .home-header,
@@ -256,6 +261,10 @@ h2 {
 
 #screen-install .receipt-card {
   grid-template-columns: 1fr;
+}
+
+#screen-install button span {
+  color: #fff;
 }
 
 .receipt-card #parsedPaidBy {
@@ -487,6 +496,11 @@ textarea {
   background: rgba(9, 7, 14, 0.62);
   color: var(--ink);
   text-shadow: none;
+}
+
+.scan-action.secondary-action span,
+.scan-action.secondary-action svg {
+  color: #fff;
 }
 
 .scan-action input {
@@ -790,6 +804,23 @@ textarea {
   animation: spin 0.85s linear infinite;
 }
 
+.scan-step.failed {
+  color: var(--ink);
+}
+
+.scan-step.failed span {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #fff;
+  animation: none;
+}
+
+.scan-step.failed span::before {
+  content: "×";
+  font-size: 18px;
+  font-weight: 1000;
+}
+
 .delete-item {
   flex: 0 0 52px;
   display: grid;
@@ -1015,11 +1046,25 @@ textarea {
 }
 
 .covered-label {
-  margin-bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  max-width: 100%;
+  gap: 8px;
+  margin-bottom: 2px;
+  padding: 4px 8px;
+  border: 1px solid rgba(47, 208, 233, 0.24);
+  border-radius: 999px;
   color: var(--cyan);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 950;
   text-transform: uppercase;
+}
+
+.covered-label small {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: none;
 }
 
 .claim-card {
@@ -1358,6 +1403,10 @@ textarea {
   position: relative;
   min-height: 142px;
   cursor: pointer;
+}
+
+.select-item-row .covered-label {
+  grid-column: 1 / -1;
 }
 
 .select-item-row.selected {
@@ -1868,6 +1917,35 @@ textarea {
   padding: 14px;
 }
 
+.scan-progress.processing {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: center;
+  gap: 22px;
+  min-height: 100dvh;
+  border: 0;
+  border-radius: 0;
+  background: rgba(7, 5, 12, 0.98);
+  padding: max(54px, env(safe-area-inset-top)) 28px max(34px, env(safe-area-inset-bottom));
+}
+
+.scan-progress.processing > div:not(.spinner) {
+  max-width: 360px;
+  text-align: center;
+}
+
+.scan-progress.processing .scan-steps {
+  width: min(340px, 100%);
+  text-align: left;
+}
+
+.scan-progress.failed .spinner {
+  display: none;
+}
+
 .spinner {
   width: 34px;
   height: 34px;
@@ -1968,7 +2046,14 @@ textarea {
 }
 
 .pending-row {
-  align-items: stretch;
+  min-height: 72px;
+  align-items: center;
+}
+
+.pending-row > div {
+  display: grid;
+  align-content: center;
+  gap: 4px;
 }
 
 .pending-row button,
