@@ -418,8 +418,19 @@ function showScreen(name, options = {}) {
     expensesReturnHomeMode = Boolean(options.afterExpense);
     renderExpenses();
   }
-  if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
+  trimPageToContent();
   makeIcons();
+}
+
+function trimPageToContent() {
+  if (!isBrowser) return;
+  window.scrollTo({ top: 0, behavior: "instant" });
+  requestAnimationFrame(() => {
+    const activeScreen = $(".screen.active");
+    if (!activeScreen) return;
+    const extra = Math.max(0, window.scrollY + window.innerHeight - browserDocument.documentElement.scrollHeight);
+    if (extra > 0) window.scrollBy(0, -extra);
+  });
 }
 
 function goBack(fallback = "home") {
@@ -906,7 +917,7 @@ function setScanStep(step, completeCurrent = false) {
     row.classList.toggle("done", rowIndex < activeIndex || (completeCurrent && rowIndex === activeIndex));
     row.classList.toggle("active", !completeCurrent && rowIndex === activeIndex);
     row.classList.remove("failed");
-    row.style.order = row.classList.contains("done") ? "0" : row.classList.contains("active") ? "2" : "1";
+    row.style.order = `${rowIndex}`;
   });
 }
 
@@ -914,11 +925,10 @@ function setScanFailed(message) {
   const active = $("[data-scan-step].active") || $('[data-scan-step="extracting"]');
   $$("[data-scan-step]").forEach((row) => {
     row.classList.remove("active");
-    if (!row.classList.contains("done")) row.style.order = "1";
+    row.style.order = `${["captured", "prepared", "compressed", "uploaded", "extracting"].indexOf(row.dataset.scanStep)}`;
   });
   if (active) {
     active.classList.add("failed");
-    active.style.order = "2";
     const label = active.querySelector("strong");
     if (label) label.textContent = message;
   }
@@ -1985,6 +1995,7 @@ function toggleClaimRow(itemId) {
   if (!personId) return;
   const item = parsedReceipt.items.find((entry) => entry.id === itemId);
   if (!item) return;
+  moveCoveredItemToMainList(itemId);
   if (itemQuantity(item) > 1) {
     const claims = { ...(item.claims || {}) };
     if (claims[personId]) delete claims[personId];
@@ -2024,6 +2035,7 @@ function adjustItemClaim(itemId, personId, delta) {
   if (!parsedReceipt) return;
   const item = parsedReceipt.items.find((entry) => entry.id === itemId);
   if (!item) return;
+  moveCoveredItemToMainList(itemId);
   const claims = { ...(item.claims || {}) };
   const requested = Math.max(0, Number(claims[personId] || 0) + delta);
   if (requested > 0) claims[personId] = requested;
@@ -2037,6 +2049,7 @@ function splitSingleItem(itemId) {
   if (!parsedReceipt) return;
   const item = parsedReceipt.items.find((entry) => entry.id === itemId);
   if (!item || itemQuantity(item) !== 1) return;
+  moveCoveredItemToMainList(itemId);
   const activePerson = activePersonId || $("#reviewPaidBy").value || state.people[0]?.id;
   if (!activePerson) return;
   const maxPeople = Math.max(2, state.people.length);
@@ -2052,12 +2065,18 @@ function toggleItemSharePerson(itemId, personId) {
   if (!parsedReceipt || !personId) return;
   const item = parsedReceipt.items.find((entry) => entry.id === itemId);
   if (!item || itemQuantity(item) !== 1) return;
+  moveCoveredItemToMainList(itemId);
   const assigned = new Set(item.assignedTo || []);
   if (assigned.has(personId)) assigned.delete(personId);
   else assigned.add(personId);
   item.assignedTo = Array.from(assigned);
   item.claims = {};
   renderAssignment();
+}
+
+function moveCoveredItemToMainList(itemId) {
+  if (!initiallyCoveredItemIds.has(itemId)) return;
+  initiallyCoveredItemIds.delete(itemId);
 }
 
 function safePrompt(message, fallback = "") {
@@ -3027,7 +3046,6 @@ function renderHistory() {
                 </div>
                 <div class="money">${money.format(receipt.totalUsd)}</div>
               </div>
-              <div class="subtext">Original ${formatNative(receipt.totalNative, receipt.currency)} · ${formatRate(receipt.currency, receipt.rateUsed)}</div>
               <div class="receipt-row-actions">
                 ${
                   receipt.splitMode === "items"

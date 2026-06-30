@@ -94,7 +94,47 @@ button:disabled {
   padding: 8px 0 18px;
 }
 
+.trip-title-button {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.trip-title-button .eyebrow {
+  margin: 0;
+}
+
+.trip-title-button span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.trip-title-button strong {
+  min-width: 0;
+  color: var(--ink);
+  font-size: clamp(30px, 9vw, 44px);
+  font-weight: 1000;
+  line-height: 0.98;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trip-title-button svg {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  color: var(--muted);
+}
+
 .header-actions {
+  flex: 0 0 auto;
   display: flex;
   gap: 8px;
 }
@@ -393,9 +433,14 @@ textarea {
   background: var(--field);
   color: var(--muted);
   padding: 0 16px;
-  font-size: 18px;
-  font-weight: 900;
+  font-size: 17px;
+  font-weight: 850;
   text-align: left;
+}
+
+.attachment-field span {
+  color: inherit;
+  font: inherit;
 }
 
 .attachment-field svg {
