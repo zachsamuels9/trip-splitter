@@ -371,6 +371,7 @@ function bindEvents() {
   ["manualTip", "manualTax", "manualFees", "manualDiscount"].forEach((id) => {
     $(`#${id}`).addEventListener("input", renderManualReview);
   });
+  $("#receiptCurrency").addEventListener("change", renderManualReview);
 
   ["reviewName", "reviewDate", "reviewNotes"].forEach((id) => {
     $(`#${id}`).addEventListener("input", updateParsedDetails);
@@ -731,6 +732,17 @@ async function api(path, options = {}) {
   });
   if (!response.ok) throw new Error(await response.text());
   return response.json();
+}
+
+function readApiError(error) {
+  const message = error?.message || "";
+  if (!message) return "";
+  try {
+    const parsed = JSON.parse(message);
+    return parsed.error || message;
+  } catch {
+    return message;
+  }
 }
 
 async function signInAccount() {
@@ -1292,7 +1304,10 @@ function addManualItem(name = "", qty = 1, price = "") {
       </label>
       <label>
         <span>Unit price *</span>
-        <input data-field="price" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(price)}" />
+        <div class="currency-input manual-price-input">
+          <em class="manual-price-symbol">$</em>
+          <input data-field="price" type="number" min="0" step="0.01" inputmode="decimal" value="${escapeHtml(price)}" />
+        </div>
       </label>
     </div>
     <div class="line-total"><span>Line total</span><strong>$0.00</strong></div>
@@ -1338,6 +1353,7 @@ function renderManualReview() {
     const qty = Number(row.querySelector('[data-field="qty"]').value || 0);
     const price = Number(row.querySelector('[data-field="price"]').value || 0);
     row.querySelector(".line-total strong").textContent = formatNative(qty * price, $("#receiptCurrency").value);
+    row.querySelector(".manual-price-symbol").textContent = currencySymbol($("#receiptCurrency").value);
     syncManualQuantityButtons(row);
   });
   const subtotal = sum(draft.items.map((item) => item.total));
@@ -2568,7 +2584,6 @@ async function loadAdminTrips() {
   try {
     const response = await api(`/api/admin/trips?password=${encodeURIComponent(password)}`);
     const accounts = await api(`/api/admin/accounts?password=${encodeURIComponent(password)}`);
-    const ocrUsage = await api(`/api/admin/ocr-usage?password=${encodeURIComponent(password)}`);
     $("#adminLogin").classList.add("hidden");
     $("#adminPanel").classList.remove("hidden");
     $("#adminAccountsPanel").classList.remove("hidden");
@@ -2617,10 +2632,21 @@ async function loadAdminTrips() {
     $$("[data-admin-account]").forEach((button) => {
       button.addEventListener("click", () => deleteAdminAccount(button));
     });
-    renderOcrUsageSummary(ocrUsage.usage, $("#adminOcrMonth"), $("#adminOcrUsage"));
+    await loadAdminOcrUsage(password);
     makeIcons();
   } catch {
     safeAlert("Wrong password or admin API unavailable.");
+  }
+}
+
+async function loadAdminOcrUsage(password = $("#adminPassword").value) {
+  $("#adminOcrMonth").textContent = "This month";
+  $("#adminOcrUsage").innerHTML = `<div class="empty">Loading OCR usage...</div>`;
+  try {
+    const ocrUsage = await api(`/api/admin/ocr-usage?password=${encodeURIComponent(password)}`);
+    renderOcrUsageSummary(ocrUsage.usage, $("#adminOcrMonth"), $("#adminOcrUsage"));
+  } catch (error) {
+    $("#adminOcrUsage").innerHTML = `<div class="empty">${escapeHtml(readApiError(error) || "OCR usage is unavailable.")}</div>`;
   }
 }
 

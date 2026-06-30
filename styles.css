@@ -658,8 +658,8 @@ textarea {
 
 .manual-row {
   display: grid;
-  gap: 10px;
-  padding: 13px;
+  gap: 14px;
+  padding: 16px;
 }
 
 .manual-row .field-grid,
@@ -668,34 +668,52 @@ textarea {
 }
 
 .manual-row .line-total {
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .manual-item-fields {
   display: grid;
-  grid-template-columns: minmax(118px, 0.76fr) minmax(0, 1.24fr);
+  grid-template-columns: minmax(112px, 0.78fr) minmax(0, 1.22fr);
   align-items: end;
   gap: 12px;
-  margin-top: -2px;
+  margin-top: 0;
 }
 
 .manual-item-fields label {
   margin-top: 0;
 }
 
-.manual-qty {
-  width: min(124px, 100%);
-  height: 60px;
-  grid-template-columns: 36px 46px 36px;
+#screen-manual .manual-qty {
+  width: min(116px, 100%);
+  height: 52px;
+  min-height: 52px;
+  grid-template-columns: 34px 44px 34px;
+  border-radius: 16px;
 }
 
-.manual-qty button {
-  min-height: 58px;
+#screen-manual .manual-qty button {
+  min-height: 50px;
 }
 
-.manual-qty input {
-  min-height: 58px;
-  font-size: 18px;
+#screen-manual .manual-qty input {
+  min-height: 50px;
+  height: 50px;
+  font-size: 17px;
+}
+
+#screen-manual .manual-price-input input {
+  min-height: 52px;
+  height: 52px;
+  padding-left: 34px;
+}
+
+#screen-manual .manual-price-input em {
+  left: 14px;
+  font-size: 17px;
+}
+
+#screen-manual .manual-item-fields > label {
+  gap: 7px;
 }
 
 .manual-adjustments {
@@ -792,7 +810,7 @@ textarea {
 
 .manual-name-line button,
 .person-row button {
-  height: 56px;
+  height: 60px;
   border-radius: 16px;
   background: var(--field);
   color: var(--danger);
