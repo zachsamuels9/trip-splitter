@@ -59,6 +59,10 @@ button:disabled {
   padding: max(18px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
 }
 
+.standalone-webapp .shell {
+  padding-top: max(44px, calc(env(safe-area-inset-top) + 26px));
+}
+
 .screen {
   display: none;
   padding-bottom: 18px;
@@ -348,6 +352,47 @@ textarea {
   min-height: 60px;
 }
 
+#screen-manual select,
+#receiptCurrency,
+#paidBy {
+  height: 60px;
+  line-height: 60px;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+#manualDate {
+  text-align: left;
+}
+
+#manualDate::-webkit-date-and-time-value {
+  text-align: left;
+}
+
+#manualAttachment {
+  display: none;
+}
+
+.attachment-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 60px;
+  border: 1px solid #111525;
+  border-radius: 16px;
+  background: var(--field);
+  color: var(--muted);
+  padding: 0 16px;
+  font-size: 18px;
+  font-weight: 900;
+  text-align: left;
+}
+
+.attachment-field svg {
+  flex: 0 0 auto;
+}
+
 input[type="date"] {
   min-width: 0;
   height: 56px;
@@ -381,6 +426,7 @@ textarea {
 
 .field-grid > label {
   min-width: 0;
+  margin-top: 0;
 }
 
 .scan-buttons,
@@ -484,6 +530,12 @@ textarea {
 .small-primary {
   min-height: 46px;
   padding: 0 16px;
+}
+
+#newGroup,
+#newGroup span,
+.section-title .small-primary span {
+  color: #fff;
 }
 
 .full {
@@ -606,7 +658,8 @@ textarea {
 
 .manual-row {
   display: grid;
-  gap: 12px;
+  gap: 10px;
+  padding: 13px;
 }
 
 .manual-row .field-grid,
@@ -616,6 +669,38 @@ textarea {
 
 .manual-row .line-total {
   padding-top: 2px;
+}
+
+.manual-item-fields {
+  display: grid;
+  grid-template-columns: minmax(118px, 0.76fr) minmax(0, 1.24fr);
+  align-items: end;
+  gap: 12px;
+  margin-top: -2px;
+}
+
+.manual-item-fields label {
+  margin-top: 0;
+}
+
+.manual-qty {
+  width: min(124px, 100%);
+  height: 60px;
+  grid-template-columns: 36px 46px 36px;
+}
+
+.manual-qty button {
+  min-height: 58px;
+}
+
+.manual-qty input {
+  min-height: 58px;
+  font-size: 18px;
+}
+
+.manual-adjustments {
+  margin-top: 0;
+  row-gap: 16px;
 }
 
 .item-row {
@@ -1157,6 +1242,12 @@ textarea {
   background: transparent;
 }
 
+.confirm-qty button:disabled,
+.claim-stepper button:disabled {
+  color: rgba(255, 255, 255, 0.36);
+  opacity: 1;
+}
+
 .confirm-qty button svg {
   display: block;
   width: 20px;
@@ -1338,7 +1429,7 @@ textarea {
 }
 
 #expensesHome {
-  margin-top: 18px;
+  margin: 0 0 16px;
 }
 
 .scan-result-card {

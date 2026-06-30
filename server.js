@@ -174,7 +174,7 @@ async function handleApi(req, res, url) {
     return;
   }
 
-  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen|reset|ocr-usage))?$/);
+  const groupMatch = url.pathname.match(/^\/api\/groups\/([^/]+)(?:\/(people|receipts|close|reopen|reset))?$/);
   if (!groupMatch) {
     sendJson(res, 404, { error: "Not found" });
     return;
@@ -183,23 +183,6 @@ async function handleApi(req, res, url) {
   if (req.method === "GET" && !groupMatch[2]) {
     const group = await getRequiredGroup(groupMatch[1]);
     sendJson(res, 200, publicGroup(group));
-    return;
-  }
-
-  if (["GET", "PATCH"].includes(req.method) && groupMatch[2] === "ocr-usage") {
-    const group = publicGroup(await getRequiredGroup(groupMatch[1]));
-    const participantId = url.searchParams.get("participantId") || "";
-    const accountId = url.searchParams.get("accountId") || "";
-    if (!canViewOcrUsage(group, participantId, accountId)) {
-      sendJson(res, 403, { error: "Only the trip owner can view OCR usage." });
-      return;
-    }
-    if (req.method === "PATCH") {
-      const body = await readBody(req);
-      sendJson(res, 200, { usage: await setActiveMonthlyLimit(body.limit) });
-      return;
-    }
-    sendJson(res, 200, { usage: await getOcrUsage() });
     return;
   }
 
@@ -236,13 +219,6 @@ async function handleApi(req, res, url) {
   }
 
   sendJson(res, 405, { error: "Method not allowed" });
-}
-
-function canViewOcrUsage(group, participantId, accountId) {
-  if (group.ownerParticipantId && participantId && group.ownerParticipantId === participantId) return true;
-  if (group.ownerAccountId && accountId && group.ownerAccountId === accountId) return true;
-  if (!group.ownerParticipantId && !group.ownerAccountId && group.people?.[0]?.id === participantId) return true;
-  return false;
 }
 
 function serveStatic(req, res, url) {

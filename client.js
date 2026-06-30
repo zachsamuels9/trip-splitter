@@ -30,6 +30,7 @@ const navigationStack = [];
 let currentScreenName = "";
 let accountProfile = null;
 let settlementArchiveOpen = false;
+let expensesReturnHomeMode = false;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -37,6 +38,7 @@ const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD
 
 if (isBrowser) {
   browserDocument.addEventListener("DOMContentLoaded", async () => {
+    browserDocument.body.classList.toggle("standalone-webapp", isStandaloneWebApp());
     bindEvents();
     seedManualRows();
     registerServiceWorker();
@@ -340,6 +342,7 @@ function bindEvents() {
       openReceiptUpload();
     }
   });
+  $("#manualAttachmentButton").addEventListener("click", () => $("#manualAttachment")?.click());
   $("#manualAttachment").addEventListener("change", storeManualAttachment);
   $("#reviewAttachment").addEventListener("change", storeReviewAttachment);
   $("#addManualItem").addEventListener("click", () => addManualItem());
@@ -406,7 +409,10 @@ function showScreen(name, options = {}) {
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
   if (name === "install") renderInstallScreen();
   if (name === "invite") renderInviteScreen();
-  if (name === "settings") loadOwnerOcrUsage();
+  if (name === "expenses") {
+    expensesReturnHomeMode = Boolean(options.afterExpense);
+    renderExpenses();
+  }
   if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
 }
@@ -451,6 +457,11 @@ function isIphoneSafari() {
   if (!isBrowser) return false;
   const ua = navigator.userAgent || "";
   return /iphone/i.test(ua) && /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+}
+
+function isStandaloneWebApp() {
+  if (!isBrowser) return false;
+  return Boolean(window.navigator.standalone) || window.matchMedia?.("(display-mode: standalone)")?.matches;
 }
 
 function shouldShowIosInstallStep() {
@@ -1246,6 +1257,7 @@ function setTodayIfBlank() {
 async function storeManualAttachment(event) {
   const file = event.target.files?.[0];
   manualAttachmentDataUrl = file ? await fileToDataUrl(file) : "";
+  $("#manualAttachmentStatus").textContent = file ? file.name || "Attachment added" : "Tap to add attachment";
 }
 
 async function storeReviewAttachment(event) {
@@ -1269,10 +1281,14 @@ function addManualItem(name = "", qty = 1, price = "") {
       </label>
       <button data-remove-manual="${id}" aria-label="Remove item"><i data-lucide="trash-2"></i></button>
     </div>
-    <div class="field-grid two">
+    <div class="manual-item-fields">
       <label>
-        <span>Qty</span>
-        <input data-field="qty" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(qty)}" />
+        <span>Qty *</span>
+        <div class="confirm-qty manual-qty">
+          <button type="button" data-manual-qty-step="${id}" data-delta="-1" aria-label="Decrease quantity"><i data-lucide="minus"></i></button>
+          <input data-field="qty" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(Math.max(1, Number(qty || 1)))}" aria-label="Quantity" />
+          <button type="button" data-manual-qty-step="${id}" data-delta="1" aria-label="Increase quantity"><i data-lucide="plus"></i></button>
+        </div>
       </label>
       <label>
         <span>Unit price *</span>
@@ -1283,6 +1299,9 @@ function addManualItem(name = "", qty = 1, price = "") {
   `;
   $("#manualItems").appendChild(row);
   row.querySelectorAll("input").forEach((input) => input.addEventListener("input", renderManualReview));
+  row.querySelectorAll("[data-manual-qty-step]").forEach((button) => {
+    button.addEventListener("click", () => stepManualQuantity(row, Number(button.dataset.delta || 0)));
+  });
   row.querySelector("[data-remove-manual]").addEventListener("click", () => {
     row.remove();
     if (!$$(".manual-row").length) addManualItem();
@@ -1298,7 +1317,7 @@ function getManualDraft() {
     const qty = Number(row.querySelector('[data-field="qty"]').value || 0);
     const price = Number(row.querySelector('[data-field="price"]').value || 0);
     const touched = Boolean(name || row.querySelector('[data-field="price"]').value || row.querySelector('[data-field="qty"]').value !== "1");
-    const incomplete = touched && (!name || price <= 0);
+    const incomplete = touched && (!name || qty <= 0 || price <= 0);
     return { row, name, qty, price, touched, incomplete, total: qty * price };
   });
   const items = rows
@@ -1319,6 +1338,7 @@ function renderManualReview() {
     const qty = Number(row.querySelector('[data-field="qty"]').value || 0);
     const price = Number(row.querySelector('[data-field="price"]').value || 0);
     row.querySelector(".line-total strong").textContent = formatNative(qty * price, $("#receiptCurrency").value);
+    syncManualQuantityButtons(row);
   });
   const subtotal = sum(draft.items.map((item) => item.total));
   const total = Math.max(0, subtotal + draft.tip + draft.tax + draft.fees - draft.discount);
@@ -1332,6 +1352,20 @@ function renderManualReview() {
   `;
 }
 
+function stepManualQuantity(row, delta) {
+  const input = row.querySelector('[data-field="qty"]');
+  if (!input) return;
+  input.value = String(Math.max(1, Math.floor(Number(input.value || 1) + delta)));
+  renderManualReview();
+}
+
+function syncManualQuantityButtons(row) {
+  const input = row.querySelector('[data-field="qty"]');
+  const current = Math.max(1, Math.floor(Number(input?.value || 1)));
+  if (input && String(current) !== input.value) input.value = String(current);
+  row.querySelector('[data-manual-qty-step][data-delta="-1"]')?.toggleAttribute("disabled", current <= 1);
+}
+
 function buildManualReceipt() {
   const draft = getManualDraft();
   if (!$("#receiptCurrency").value || !$("#paidBy").value || !$("#manualDate").value || !$("#manualName").value.trim()) {
@@ -1339,7 +1373,7 @@ function buildManualReceipt() {
     return;
   }
   if (draft.incompleteRows.length) {
-    safeAlert("Finish the item name and unit price for any row you started, or leave it blank.");
+    safeAlert("Finish the item name, quantity, and unit price for any row you started, or leave it blank.");
     return;
   }
   if (!draft.items.length) {
@@ -1375,6 +1409,7 @@ function buildManualReceipt() {
   splitMode = "items";
   manualAttachmentDataUrl = "";
   $("#manualAttachment").value = "";
+  $("#manualAttachmentStatus").textContent = "Tap to add attachment";
   showConfirmItems();
 }
 
@@ -1521,6 +1556,7 @@ function confirmItemRowMarkup(item) {
   const total = Number(item.amount || unitPrice * quantity);
   const unitAmountClass = amountSizeClass(unitPrice, currency);
   const totalAmountClass = amountSizeClass(total, currency);
+  const decreaseDisabled = quantity <= 1 ? "disabled" : "";
   return `
             <article class="confirm-item-card">
               <div class="confirm-item-head">
@@ -1536,7 +1572,7 @@ function confirmItemRowMarkup(item) {
                   <span class="unit-suffix">/ea</span>
                 </label>
                 <div class="confirm-qty">
-                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
+                  <button type="button" data-edit-qty-step="${item.id}" data-delta="-1" aria-label="Decrease ${escapeHtml(item.name)}" ${decreaseDisabled}><i data-lucide="minus"></i></button>
                   <input data-edit-item-qty="${item.id}" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(quantity)}" aria-label="Quantity" />
                   <button type="button" data-edit-qty-step="${item.id}" data-delta="1" aria-label="Increase ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
                 </div>
@@ -1582,6 +1618,14 @@ function selectItemRowMarkup(item, covered) {
   const canSplitSingle = quantity === 1 && state.people.length > 1;
   const assignedPeople = (item.assignedTo || []).filter((personId) => state.people.some((person) => person.id === personId));
   const shareSummary = assignedPeople.length > 1 ? `Split ${assignedPeople.length} ways` : activeSelected ? `Covering ${formatNative(activeShare, currency)}` : "Tap to claim";
+  const claimedByOthers = sum(
+    Object.entries(item.claims || {})
+      .filter(([personId]) => personId !== activePerson)
+      .map(([, value]) => Number(value || 0))
+  );
+  const maxActiveClaim = Math.max(0, quantity - claimedByOthers);
+  const removeDisabled = activeClaim <= 0 ? "disabled" : "";
+  const addDisabled = activeClaim >= maxActiveClaim ? "disabled" : "";
   return `
             <article class="select-item-row ${activeSelected ? "selected" : ""}" data-claim-row="${item.id}">
               ${covered ? `<div class="covered-label">Already covered - tap to edit</div>` : ""}
@@ -1609,9 +1653,9 @@ function selectItemRowMarkup(item, covered) {
                 ${
                   quantity > 1
                     ? `<div class="claim-stepper large ${activeSelected ? "" : "invisible"}" aria-label="${escapeHtml(activeName)} quantity">
-                      <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)}"><i data-lucide="minus"></i></button>
+                      <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="-1" aria-label="Remove one ${escapeHtml(item.name)}" ${removeDisabled}><i data-lucide="minus"></i></button>
                       <strong>${activeClaim || 0}</strong>
-                      <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)}"><i data-lucide="plus"></i></button>
+                      <button type="button" data-claim-adjust="${item.id}" data-person="${activePerson}" data-delta="1" aria-label="Add one ${escapeHtml(item.name)}" ${addDisabled}><i data-lucide="plus"></i></button>
                     </div>`
                     : `<strong class="claim-total">${formatNative(activeSelected ? activeShare : Number(item.amount || 0), currency)}</strong>`
                 }
@@ -2277,7 +2321,7 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
   saveState();
   saveGroupReceipt(receipt);
   render();
-  if (directToExpenses && !assignLater) showScreen("expenses");
+  if (directToExpenses && !assignLater) showScreen("expenses", { afterExpense: true, replace: true });
   else showConfirmation(receipt, assignLater);
 }
 
@@ -2389,7 +2433,6 @@ function renderGroupUi() {
   const signedIn = Boolean(activeGroupId && activePersonId && activeGroup);
   $("#resetApp").classList.add("hidden");
   $("#closeTrip").classList.add("hidden");
-  $("#ocrUsagePanel")?.classList.add("hidden");
   $("#homeGroupSetup").classList.toggle("hidden", signedIn);
   $("#homeTripTitle").textContent = activeGroup?.name || "Group expenses";
   const closed = isTripClosed();
@@ -2417,7 +2460,6 @@ function renderGroupUi() {
   $("#leaveTrip").classList.toggle("hidden", isTripOwner());
   $("#closeTrip").classList.toggle("hidden", !isTripOwner());
   $("#deleteTrip").classList.toggle("hidden", !isTripOwner());
-  $("#ocrUsagePanel")?.classList.toggle("hidden", !isTripOwner());
   $("#closeTripLabel").textContent = closed ? "Reopen trip" : "Close trip and settle";
 }
 
@@ -2582,27 +2624,10 @@ async function loadAdminTrips() {
   }
 }
 
-async function loadOwnerOcrUsage() {
-  const panel = $("#ocrUsagePanel");
-  if (!panel || !activeGroupId || !isTripOwner()) {
-    panel?.classList.add("hidden");
-    return;
-  }
-  panel.classList.remove("hidden");
-  $("#ocrUsageSummary").innerHTML = `<div class="empty">Loading OCR usage...</div>`;
-  try {
-    const accountId = accountProfile?.id || "";
-    const result = await api(`/api/groups/${activeGroupId}/ocr-usage?participantId=${encodeURIComponent(activePersonId || "")}&accountId=${encodeURIComponent(accountId)}`);
-    renderOcrUsageSummary(result.usage, $("#ocrUsageMonth"), $("#ocrUsageSummary"));
-  } catch (error) {
-    $("#ocrUsageSummary").innerHTML = `<div class="empty">${escapeHtml(error.message || "OCR usage is unavailable.")}</div>`;
-  }
-}
-
 function renderOcrUsageSummary(usage, monthEl, targetEl) {
   if (!usage || !targetEl) return;
-  const scope = targetEl.id === "adminOcrUsage" ? "admin" : "owner";
-  if (monthEl) monthEl.textContent = usage.month || "This month";
+  const scope = "admin";
+  if (monthEl) monthEl.textContent = formatOcrMonth(usage.month);
   const costLow = money.format(Number(usage.estimatedCostLow || 0));
   const costHigh = money.format(Number(usage.estimatedCostHigh || 0));
   const used = Number(usage.used || 0);
@@ -2666,6 +2691,13 @@ function renderOcrUsageSummary(usage, monthEl, targetEl) {
   makeIcons();
 }
 
+function formatOcrMonth(value) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})$/);
+  if (!match) return "This month";
+  const date = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
 function bindOcrLimitControls(scope, monthEl, targetEl) {
   const input = $(`#${scope}OcrLimitInput`);
   if (!input) return;
@@ -2690,13 +2722,7 @@ async function saveOcrLimit(scope, monthEl, targetEl) {
   }
   if (status) status.textContent = "Saving...";
   try {
-    const result =
-      scope === "admin"
-        ? await api(`/api/admin/ocr-usage?password=${encodeURIComponent($("#adminPassword").value)}`, { method: "PATCH", body: { limit } })
-        : await api(`/api/groups/${activeGroupId}/ocr-usage?participantId=${encodeURIComponent(activePersonId || "")}&accountId=${encodeURIComponent(accountProfile?.id || "")}`, {
-            method: "PATCH",
-            body: { limit },
-          });
+    const result = await api(`/api/admin/ocr-usage?password=${encodeURIComponent($("#adminPassword").value)}`, { method: "PATCH", body: { limit } });
     renderOcrUsageSummary(result.usage, monthEl, targetEl);
     const nextStatus = $(`#${scope}OcrLimitStatus`);
     if (nextStatus) nextStatus.textContent = "Saved.";
@@ -3055,6 +3081,8 @@ function renderExpenses() {
   });
   $("#expensesTitle").textContent = person ? `${possessive(person.name)} expenses` : "My expenses";
   $("#expensesTotal").textContent = money.format(total);
+  $("#expensesBack")?.classList.toggle("hidden", expensesReturnHomeMode);
+  $("#expensesHome")?.classList.toggle("hidden", !expensesReturnHomeMode);
   $("#expensesList").innerHTML = rows.length
     ? rows
         .map(

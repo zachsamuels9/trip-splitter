@@ -267,12 +267,16 @@
               <input id="manualDate" type="date" required />
             </label>
           <label>
-            <span>Notes</span>
-            <input id="manualDescription" type="text" placeholder="Optional notes" />
+            <span>Attachment</span>
+            <button class="attachment-field" id="manualAttachmentButton" type="button">
+              <span id="manualAttachmentStatus">Tap to add attachment</span>
+              <i data-lucide="image-up"></i>
+            </button>
+            <input id="manualAttachment" type="file" accept="image/*" />
           </label>
           <label>
-            <span>Attachment</span>
-            <input id="manualAttachment" type="file" accept="image/*" />
+            <span>Notes</span>
+            <input id="manualDescription" type="text" placeholder="Optional notes" />
           </label>
         </section>
 
@@ -285,7 +289,7 @@
         </section>
 
         <section class="panel">
-          <div class="field-grid two">
+          <div class="field-grid two manual-adjustments">
             <label>
               <span>Tip</span>
               <input id="manualTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
@@ -629,6 +633,7 @@
 
       <section class="screen" id="screen-expenses">
         <header class="flow-header">
+          <button class="back-button" id="expensesBack" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
           <h1>My expenses</h1>
         </header>
         <section class="panel">
@@ -636,8 +641,8 @@
             <h2 id="expensesTitle">Your items</h2>
             <span id="expensesTotal">$0.00</span>
           </div>
+          <button class="primary full hidden" id="expensesHome"><i data-lucide="home"></i><span>Return home</span></button>
           <div id="expensesList" class="history-list"></div>
-          <button class="primary full" id="expensesHome"><i data-lucide="home"></i><span>Return home</span></button>
         </section>
       </section>
 
@@ -701,15 +706,6 @@
           <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
           <button class="primary full danger-action hidden" id="deleteTrip"><i data-lucide="trash-2"></i><span>Delete trip</span></button>
           <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Reset trip</span></button>
-        </section>
-        <section class="panel hidden" id="ocrUsagePanel">
-          <div class="section-title">
-            <h2>OCR usage</h2>
-            <span id="ocrUsageMonth">This month</span>
-          </div>
-          <div id="ocrUsageSummary" class="totals-list">
-            <div class="empty">OCR usage will appear here.</div>
-          </div>
         </section>
       </section>
       <section class="screen" id="screen-account-settings">
