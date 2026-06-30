@@ -94,45 +94,6 @@ button:disabled {
   padding: 8px 0 18px;
 }
 
-.trip-title-button {
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-  padding: 0;
-  background: transparent;
-  color: inherit;
-  text-align: left;
-}
-
-.trip-title-button .eyebrow {
-  margin: 0;
-}
-
-.trip-title-button span {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.trip-title-button strong {
-  min-width: 0;
-  color: var(--ink);
-  font-size: clamp(30px, 9vw, 44px);
-  font-weight: 1000;
-  line-height: 0.98;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.trip-title-button svg {
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  color: var(--muted);
-}
-
 .header-actions {
   flex: 0 0 auto;
   display: flex;
@@ -431,10 +392,10 @@ textarea {
   border: 1px solid #111525;
   border-radius: 16px;
   background: var(--field);
-  color: var(--muted);
+  color: rgba(247, 245, 255, 0.42);
   padding: 0 16px;
   font-size: 17px;
-  font-weight: 850;
+  font-weight: 400;
   text-align: left;
 }
 
@@ -1004,10 +965,8 @@ textarea {
 }
 
 .receipt-details summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  position: relative;
+  display: block;
   list-style: none;
   cursor: pointer;
   color: var(--ink);
@@ -1015,14 +974,21 @@ textarea {
 }
 
 .receipt-details summary > div {
-  flex: 1;
+  width: 100%;
   min-width: 0;
 }
 
+.receipt-details summary > div > span {
+  display: block;
+  padding-right: 30px;
+}
+
 .receipt-details summary svg {
-  flex: 0 0 auto;
-  align-self: start;
-  margin-top: 2px;
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
 }
 
 .receipt-details summary::-webkit-details-marker {
@@ -1042,7 +1008,7 @@ textarea {
 
 .detail-summary div {
   display: grid;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  grid-template-columns: minmax(0, 0.68fr) minmax(0, 1.32fr);
   gap: 12px;
   color: var(--muted);
   font-size: 14px;

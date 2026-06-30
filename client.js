@@ -304,9 +304,6 @@ function bindEvents() {
   $("#personalTotal").addEventListener("click", () => showScreen("expenses"));
   $("#expensesHome").addEventListener("click", () => showScreen("home"));
   $("#openReceipts").addEventListener("click", () => showScreen("totals"));
-  $("#webAppRefresh")?.addEventListener("click", () => {
-    if (isBrowser) window.location.reload();
-  });
   $("#receiptSort").addEventListener("change", renderHistory);
   $("#closeTrip").addEventListener("click", closeTrip);
   $("#deleteTrip").addEventListener("click", deleteActiveTrip);
@@ -2248,9 +2245,9 @@ function reviewSelections() {
     const people = splitEvenPeople.length ? splitEvenPeople : state.people.map((person) => person.id);
     const nativeTotal = receiptTotal(parsedReceipt) / Math.max(1, people.length);
     $("#selectionReviewTotal").textContent = formatNative(nativeTotal, parsedReceipt.currency);
-    $("#selectionReviewReceipt").textContent = `${parsedReceipt.name || "Receipt"} · split evenly`;
+    $("#selectionReviewReceipt").textContent = parsedReceipt.name || "Receipt";
     $("#selectionReviewCount").textContent = `${people.length} people`;
-    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share</span><strong>${formatNative(nativeTotal, parsedReceipt.currency)}</strong></div>${convertedLine(nativeTotal, parsedReceipt.currency)}`;
+    $("#selectionReviewList").innerHTML = `<div class="fee-row"><span>Your even share (1/${Math.max(1, people.length)})</span><strong>${formatNative(nativeTotal, parsedReceipt.currency)}</strong></div>${convertedLine(nativeTotal, parsedReceipt.currency)}`;
     showScreen("selection-review");
     return;
   }
@@ -2511,7 +2508,6 @@ function render() {
 
 function renderInstallEntryPoints() {
   $("#showInstallHelp")?.classList.toggle("hidden", !isInstallGuideSupported());
-  $("#webAppRefresh")?.classList.toggle("hidden", !isStandaloneWebApp());
 }
 
 function renderGroupUi() {
