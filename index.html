@@ -205,8 +205,7 @@
             <li>Tap “Add.”</li>
             <li>Open Split My Trip from the new Home Screen icon.</li>
           </ol>
-          <button class="primary full" id="installNative"><i data-lucide="check"></i><span>I added it / Continue</span></button>
-          <button class="primary full secondary-action" id="installHome"><i data-lucide="skip-forward"></i><span>Skip for now</span></button>
+          <button class="primary full" id="installNative"><i data-lucide="check"></i><span>Done</span></button>
         </section>
       </section>
 
@@ -292,19 +291,31 @@
           <div class="field-grid two manual-adjustments">
             <label>
               <span>Tip</span>
-              <input id="manualTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              <div class="currency-input">
+                <em class="manual-adjustment-symbol">$</em>
+                <input id="manualTip" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              </div>
             </label>
             <label>
               <span>Tax</span>
-              <input id="manualTax" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              <div class="currency-input">
+                <em class="manual-adjustment-symbol">$</em>
+                <input id="manualTax" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              </div>
             </label>
             <label>
               <span>Fees</span>
-              <input id="manualFees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              <div class="currency-input">
+                <em class="manual-adjustment-symbol">$</em>
+                <input id="manualFees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              </div>
             </label>
             <label>
               <span>Discount</span>
-              <input id="manualDiscount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              <div class="currency-input">
+                <em class="manual-adjustment-symbol">$</em>
+                <input id="manualDiscount" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0" />
+              </div>
             </label>
           </div>
           <div class="review-card" id="manualReview"></div>
