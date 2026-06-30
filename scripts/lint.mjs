@@ -9,8 +9,10 @@ const jsFiles = [
   "api/accounts.js",
   "api/accounts/[id].js",
   "api/admin/accounts.js",
+  "api/admin/ocr-usage.js",
   "api/ocr.js",
   "lib/group-store.js",
+  "lib/ocr-usage-store.js",
   "lib/receipt-ocr-service.js",
   "sw.js",
 ];

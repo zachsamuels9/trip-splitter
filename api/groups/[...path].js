@@ -1,4 +1,5 @@
 const { addPerson, closeGroup, createGroup, getRequiredGroup, publicGroup, reopenGroup, resetTrip, upsertReceipt } = require("../../lib/group-store");
+const { getOcrUsage, setActiveMonthlyLimit } = require("../../lib/ocr-usage-store");
 
 module.exports = async function handler(req, res) {
   try {
@@ -17,6 +18,22 @@ module.exports = async function handler(req, res) {
     if (req.method === "GET" && !child) {
       const group = await getRequiredGroup(groupId);
       res.status(200).json(publicGroup(group));
+      return;
+    }
+
+    if (["GET", "PATCH"].includes(req.method) && child === "ocr-usage") {
+      const group = publicGroup(await getRequiredGroup(groupId));
+      const participantId = req.query.participantId || "";
+      const accountId = req.query.accountId || "";
+      if (!canViewOcrUsage(group, participantId, accountId)) {
+        res.status(403).json({ error: "Only the trip owner can view OCR usage." });
+        return;
+      }
+      if (req.method === "PATCH") {
+        res.status(200).json({ usage: await setActiveMonthlyLimit(parseBody(req.body).limit) });
+        return;
+      }
+      res.status(200).json({ usage: await getOcrUsage() });
       return;
     }
 
@@ -55,6 +72,13 @@ module.exports = async function handler(req, res) {
     res.status(error.statusCode || 500).json({ error: error.message || "Server error" });
   }
 };
+
+function canViewOcrUsage(group, participantId, accountId) {
+  if (group.ownerParticipantId && participantId && group.ownerParticipantId === participantId) return true;
+  if (group.ownerAccountId && accountId && group.ownerAccountId === accountId) return true;
+  if (!group.ownerParticipantId && !group.ownerAccountId && group.people?.[0]?.id === participantId) return true;
+  return false;
+}
 
 function parseBody(body) {
   if (!body) return {};

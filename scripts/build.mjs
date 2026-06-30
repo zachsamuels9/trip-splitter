@@ -2,7 +2,7 @@ import { accessSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, 
 import { dirname, join } from "node:path";
 
 const staticFiles = ["index.html", "client.js", "styles.css", "manifest.json", "sw.js", "icon.svg"];
-const requiredFiles = [...staticFiles, "api/ocr.js", "api/groups.js", "api/accounts.js", "lib/receipt-ocr-service.js"];
+const requiredFiles = [...staticFiles, "api/ocr.js", "api/groups.js", "api/accounts.js", "api/admin/ocr-usage.js", "lib/receipt-ocr-service.js", "lib/ocr-usage-store.js"];
 
 for (const file of requiredFiles) {
   accessSync(file);

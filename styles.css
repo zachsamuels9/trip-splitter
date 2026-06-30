@@ -728,6 +728,36 @@ textarea {
   gap: 14px;
 }
 
+.ocr-limit-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(9, 7, 14, 0.55);
+  padding: 14px;
+}
+
+.ocr-limit-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ocr-limit-options .small-primary {
+  min-height: 42px;
+  padding: 0 8px;
+}
+
+.ocr-limit-options .small-primary.active {
+  background: linear-gradient(135deg, var(--purple), var(--cyan));
+}
+
+.ocr-limit-custom {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+
 .fee-row > span,
 .row-head > div,
 .history-row,

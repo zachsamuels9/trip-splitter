@@ -702,6 +702,15 @@
           <button class="primary full danger-action hidden" id="deleteTrip"><i data-lucide="trash-2"></i><span>Delete trip</span></button>
           <button class="primary full danger-action hidden" id="resetApp"><i data-lucide="rotate-ccw"></i><span>Reset trip</span></button>
         </section>
+        <section class="panel hidden" id="ocrUsagePanel">
+          <div class="section-title">
+            <h2>OCR usage</h2>
+            <span id="ocrUsageMonth">This month</span>
+          </div>
+          <div id="ocrUsageSummary" class="totals-list">
+            <div class="empty">OCR usage will appear here.</div>
+          </div>
+        </section>
       </section>
       <section class="screen" id="screen-account-settings">
         <header class="flow-header">
@@ -753,6 +762,15 @@
             <span id="adminAccountCount">0</span>
           </div>
           <div id="adminAccounts" class="groups-list"></div>
+        </section>
+        <section class="panel hidden" id="adminOcrPanel">
+          <div class="section-title">
+            <h2>OCR usage</h2>
+            <span id="adminOcrMonth">This month</span>
+          </div>
+          <div id="adminOcrUsage" class="totals-list">
+            <div class="empty">OCR usage will appear here.</div>
+          </div>
         </section>
       </section>
       <section class="image-viewer hidden" id="imageViewer" aria-modal="true">

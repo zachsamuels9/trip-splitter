@@ -21,14 +21,15 @@ GOOGLE_DOCUMENT_AI_PROCESSOR_ID=your_document_ai_receipt_processor_id
 GOOGLE_DOCUMENT_AI_CLIENT_EMAIL=your_service_account_email
 GOOGLE_DOCUMENT_AI_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nyour_private_key\n-----END PRIVATE KEY-----\n"
 OPENAI_API_KEY=optional_for_line_item_normalization
+MAX_MONTHLY_OCR_REQUESTS=100
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 PORT=4174
 ```
 
-OCR and GPT keys are only used by server routes; they are never exposed in browser code.
+OCR and GPT keys are only used by server routes; they are never exposed in browser code. `MAX_MONTHLY_OCR_REQUESTS` is the default OCR limit; trip owners/admins can update the active monthly limit from Settings/Admin after the OCR usage SQL has been run.
 
-Run `supabase-account-migration.sql` once to enable cross-device account sign-in with email and a 4-digit passcode.
+Run `supabase-account-migration.sql` once to enable cross-device account sign-in with email and a 4-digit passcode. Run `supabase-ocr-usage.sql` once to persist monthly OCR usage counters across deployments.
 
 ## Local Development
 
@@ -65,6 +66,7 @@ pnpm dlx vercel env add GOOGLE_DOCUMENT_AI_LOCATION
 pnpm dlx vercel env add GOOGLE_DOCUMENT_AI_PROCESSOR_ID
 pnpm dlx vercel env add GOOGLE_DOCUMENT_AI_CLIENT_EMAIL
 pnpm dlx vercel env add GOOGLE_DOCUMENT_AI_PRIVATE_KEY
+pnpm dlx vercel env add MAX_MONTHLY_OCR_REQUESTS
 pnpm dlx vercel env add SUPABASE_URL
 pnpm dlx vercel env add SUPABASE_PUBLISHABLE_KEY
 ```

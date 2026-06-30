@@ -406,6 +406,7 @@ function showScreen(name, options = {}) {
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
   if (name === "install") renderInstallScreen();
   if (name === "invite") renderInviteScreen();
+  if (name === "settings") loadOwnerOcrUsage();
   if (isBrowser) window.scrollTo({ top: 0, behavior: "instant" });
   makeIcons();
 }
@@ -2388,6 +2389,7 @@ function renderGroupUi() {
   const signedIn = Boolean(activeGroupId && activePersonId && activeGroup);
   $("#resetApp").classList.add("hidden");
   $("#closeTrip").classList.add("hidden");
+  $("#ocrUsagePanel")?.classList.add("hidden");
   $("#homeGroupSetup").classList.toggle("hidden", signedIn);
   $("#homeTripTitle").textContent = activeGroup?.name || "Group expenses";
   const closed = isTripClosed();
@@ -2415,6 +2417,7 @@ function renderGroupUi() {
   $("#leaveTrip").classList.toggle("hidden", isTripOwner());
   $("#closeTrip").classList.toggle("hidden", !isTripOwner());
   $("#deleteTrip").classList.toggle("hidden", !isTripOwner());
+  $("#ocrUsagePanel")?.classList.toggle("hidden", !isTripOwner());
   $("#closeTripLabel").textContent = closed ? "Reopen trip" : "Close trip and settle";
 }
 
@@ -2523,9 +2526,11 @@ async function loadAdminTrips() {
   try {
     const response = await api(`/api/admin/trips?password=${encodeURIComponent(password)}`);
     const accounts = await api(`/api/admin/accounts?password=${encodeURIComponent(password)}`);
+    const ocrUsage = await api(`/api/admin/ocr-usage?password=${encodeURIComponent(password)}`);
     $("#adminLogin").classList.add("hidden");
     $("#adminPanel").classList.remove("hidden");
     $("#adminAccountsPanel").classList.remove("hidden");
+    $("#adminOcrPanel").classList.remove("hidden");
     $("#adminTrips").innerHTML = response.trips.length
       ? response.trips
           .map(
@@ -2570,9 +2575,133 @@ async function loadAdminTrips() {
     $$("[data-admin-account]").forEach((button) => {
       button.addEventListener("click", () => deleteAdminAccount(button));
     });
+    renderOcrUsageSummary(ocrUsage.usage, $("#adminOcrMonth"), $("#adminOcrUsage"));
     makeIcons();
   } catch {
     safeAlert("Wrong password or admin API unavailable.");
+  }
+}
+
+async function loadOwnerOcrUsage() {
+  const panel = $("#ocrUsagePanel");
+  if (!panel || !activeGroupId || !isTripOwner()) {
+    panel?.classList.add("hidden");
+    return;
+  }
+  panel.classList.remove("hidden");
+  $("#ocrUsageSummary").innerHTML = `<div class="empty">Loading OCR usage...</div>`;
+  try {
+    const accountId = accountProfile?.id || "";
+    const result = await api(`/api/groups/${activeGroupId}/ocr-usage?participantId=${encodeURIComponent(activePersonId || "")}&accountId=${encodeURIComponent(accountId)}`);
+    renderOcrUsageSummary(result.usage, $("#ocrUsageMonth"), $("#ocrUsageSummary"));
+  } catch (error) {
+    $("#ocrUsageSummary").innerHTML = `<div class="empty">${escapeHtml(error.message || "OCR usage is unavailable.")}</div>`;
+  }
+}
+
+function renderOcrUsageSummary(usage, monthEl, targetEl) {
+  if (!usage || !targetEl) return;
+  const scope = targetEl.id === "adminOcrUsage" ? "admin" : "owner";
+  if (monthEl) monthEl.textContent = usage.month || "This month";
+  const costLow = money.format(Number(usage.estimatedCostLow || 0));
+  const costHigh = money.format(Number(usage.estimatedCostHigh || 0));
+  const used = Number(usage.used || 0);
+  const limit = Number(usage.limit || 0);
+  const remaining = Number(usage.remaining || 0);
+  targetEl.innerHTML = `
+    <div class="total-row">
+      <div>
+        <div class="row-name">Requests used</div>
+        <div class="subtext">Monthly limit ${limit.toLocaleString()}</div>
+      </div>
+      <div class="money">${used.toLocaleString()}</div>
+    </div>
+    <div class="total-row">
+      <div>
+        <div class="row-name">Successful scans</div>
+        <div class="subtext">Scans returned by Google Document AI</div>
+      </div>
+      <div class="money positive">${Number(usage.successful || 0).toLocaleString()}</div>
+    </div>
+    <div class="total-row">
+      <div>
+        <div class="row-name">Failed scans</div>
+        <div class="subtext">Requests sent but not completed</div>
+      </div>
+      <div class="money negative">${Number(usage.failed || 0).toLocaleString()}</div>
+    </div>
+    <div class="total-row">
+      <div>
+        <div class="row-name">Estimated OCR cost</div>
+        <div class="subtext">Roughly $0.10-$0.20 per request</div>
+      </div>
+      <div class="money">${costLow}-${costHigh}</div>
+    </div>
+    <div class="total-row">
+      <div>
+        <div class="row-name">Last OCR scan</div>
+        <div class="subtext">${usage.lastRequestAt ? formatDateTime(usage.lastRequestAt) : "No scans yet"}</div>
+      </div>
+      <div class="money">${remaining.toLocaleString()} left</div>
+    </div>
+    <div class="ocr-limit-card" data-ocr-scope="${scope}">
+      <div>
+        <div class="row-name">Monthly OCR limit</div>
+        <div class="subtext">Updates apply immediately.</div>
+      </div>
+      <div class="ocr-limit-options" aria-label="OCR monthly limit options">
+        ${[50, 100, 150, 200]
+          .map((option) => `<button class="small-primary secondary-action ${option === limit ? "active" : ""}" data-ocr-limit="${option}" data-ocr-scope="${scope}">${option}</button>`)
+          .join("")}
+      </div>
+      <label class="ocr-limit-custom">
+        <span>Custom limit</span>
+        <input id="${scope}OcrLimitInput" type="number" min="1" step="1" inputmode="numeric" value="${limit || 100}" />
+      </label>
+      <button class="primary full" data-ocr-save="${scope}"><i data-lucide="save"></i><span>Save monthly limit</span></button>
+      <p class="subtext centered" id="${scope}OcrLimitStatus"></p>
+    </div>
+  `;
+  bindOcrLimitControls(scope, monthEl, targetEl);
+  makeIcons();
+}
+
+function bindOcrLimitControls(scope, monthEl, targetEl) {
+  const input = $(`#${scope}OcrLimitInput`);
+  if (!input) return;
+  $$(`[data-ocr-limit][data-ocr-scope="${scope}"]`).forEach((button) => {
+    button.addEventListener("click", () => {
+      input.value = button.dataset.ocrLimit || input.value;
+      saveOcrLimit(scope, monthEl, targetEl);
+    });
+  });
+  $$(`[data-ocr-save="${scope}"]`).forEach((button) => {
+    button.addEventListener("click", () => saveOcrLimit(scope, monthEl, targetEl));
+  });
+}
+
+async function saveOcrLimit(scope, monthEl, targetEl) {
+  const input = $(`#${scope}OcrLimitInput`);
+  const status = $(`#${scope}OcrLimitStatus`);
+  const limit = Number(input?.value || 0);
+  if (!Number.isFinite(limit) || limit < 1) {
+    if (status) status.textContent = "Enter a limit of at least 1.";
+    return;
+  }
+  if (status) status.textContent = "Saving...";
+  try {
+    const result =
+      scope === "admin"
+        ? await api(`/api/admin/ocr-usage?password=${encodeURIComponent($("#adminPassword").value)}`, { method: "PATCH", body: { limit } })
+        : await api(`/api/groups/${activeGroupId}/ocr-usage?participantId=${encodeURIComponent(activePersonId || "")}&accountId=${encodeURIComponent(accountProfile?.id || "")}`, {
+            method: "PATCH",
+            body: { limit },
+          });
+    renderOcrUsageSummary(result.usage, monthEl, targetEl);
+    const nextStatus = $(`#${scope}OcrLimitStatus`);
+    if (nextStatus) nextStatus.textContent = "Saved.";
+  } catch (error) {
+    if (status) status.textContent = error.message || "Could not save OCR limit.";
   }
 }
 
@@ -3062,6 +3191,13 @@ function formatShortDate(value, options = { month: "short", day: "numeric" }) {
   const date = parseDisplayDate(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString(undefined, options);
+}
+
+function formatDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 function parseDisplayDate(value) {
