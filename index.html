@@ -130,9 +130,9 @@
         </section>
 
         <nav class="quick-nav" aria-label="Views">
+          <button data-screen="activity"><i data-lucide="history"></i><span>Activity</span></button>
           <button data-screen="expenses"><i data-lucide="wallet-cards"></i><span>My expenses</span></button>
           <button data-screen="settle"><i data-lucide="hand-coins"></i><span>Settle</span></button>
-          <button data-screen="activity"><i data-lucide="list-clock"></i><span>Activity</span></button>
         </nav>
 
         <section class="panel action-panel">
@@ -400,14 +400,6 @@
             </select>
             <button class="small-primary" id="confirmCurrency"><span>Confirm</span></button>
           </div>
-        </section>
-
-        <section class="panel hidden receipt-warnings" id="receiptWarningsPanel">
-          <div class="section-title">
-            <h2>Review notes</h2>
-            <span id="receiptWarningCount">0</span>
-          </div>
-          <div id="receiptWarningsList" class="warning-list"></div>
         </section>
 
         <section class="panel receipt-tip-panel" id="receiptTipPanel">
