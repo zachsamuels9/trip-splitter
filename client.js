@@ -34,7 +34,7 @@ let expensesReturnHomeMode = false;
 let knownGroupsCleanupInFlight = false;
 let displayCurrencyIndex = 0;
 const displayCurrencies = ["USD", "THB", "VND"];
-let pullRefreshState = { startY: 0, distance: 0, pulling: false, refreshing: false };
+let pullRefreshState = { startY: 0, distance: 0, startScrollTop: 0, tracking: false, pulling: false, refreshing: false };
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -448,12 +448,24 @@ function installPullToRefresh() {
   browserDocument.body.appendChild(indicator);
 
   const startPull = (clientY) => {
-    if (pullRefreshState.refreshing || scroller.scrollTop > 2) return;
-    pullRefreshState = { startY: clientY, distance: 0, pulling: true, refreshing: false };
+    if (pullRefreshState.refreshing) return;
+    pullRefreshState = {
+      startY: clientY,
+      distance: 0,
+      startScrollTop: scroller.scrollTop,
+      tracking: true,
+      pulling: scroller.scrollTop <= 8,
+      refreshing: false,
+    };
   };
   const movePull = (clientY, event) => {
-    if (!pullRefreshState.pulling || pullRefreshState.refreshing || scroller.scrollTop > 2) return;
+    if (!pullRefreshState.tracking || pullRefreshState.refreshing) return;
     const delta = clientY - pullRefreshState.startY;
+    if (!pullRefreshState.pulling && delta > 18 && scroller.scrollTop <= 36) {
+      pullRefreshState.pulling = true;
+      pullRefreshState.startY = clientY - 18;
+    }
+    if (!pullRefreshState.pulling || scroller.scrollTop > 36) return;
     if (delta <= 0) {
       setPullRefreshDistance(indicator, 0);
       return;
@@ -491,10 +503,12 @@ function setPullRefreshDistance(indicator, distance, label = "") {
 }
 
 async function finishPullRefresh(indicator) {
-  if (!pullRefreshState.pulling || pullRefreshState.refreshing) return;
+  if (!pullRefreshState.tracking || pullRefreshState.refreshing) return;
   const shouldRefresh = pullRefreshState.distance >= 72;
+  const wasPulling = pullRefreshState.pulling;
   pullRefreshState.pulling = false;
-  if (!shouldRefresh) {
+  pullRefreshState.tracking = false;
+  if (!wasPulling || !shouldRefresh) {
     setPullRefreshDistance(indicator, 0);
     return;
   }
@@ -513,7 +527,7 @@ async function finishPullRefresh(indicator) {
     await wait(700);
   } finally {
     indicator?.classList.remove("refreshing");
-    pullRefreshState = { startY: 0, distance: 0, pulling: false, refreshing: false };
+    pullRefreshState = { startY: 0, distance: 0, startScrollTop: 0, tracking: false, pulling: false, refreshing: false };
     setPullRefreshDistance(indicator, 0);
   }
 }

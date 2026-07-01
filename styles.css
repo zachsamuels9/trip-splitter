@@ -114,7 +114,12 @@ button:disabled {
 
 .standalone-webapp .shell {
   padding-top: max(44px, calc(env(safe-area-inset-top) + 26px));
-  padding-bottom: max(48px, calc(env(safe-area-inset-bottom) + 36px));
+  padding-bottom: max(80px, calc(env(safe-area-inset-bottom) + 68px));
+  scroll-padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px));
+}
+
+.standalone-webapp .screen.active {
+  padding-bottom: max(76px, calc(env(safe-area-inset-bottom) + 64px));
 }
 
 .screen {
