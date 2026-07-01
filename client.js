@@ -34,7 +34,6 @@ let expensesReturnHomeMode = false;
 let knownGroupsCleanupInFlight = false;
 let displayCurrencyIndex = 0;
 const displayCurrencies = ["USD", "THB", "VND"];
-let viewportClampTimer = null;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -429,25 +428,6 @@ function showScreen(name, options = {}) {
 function trimPageToContent() {
   if (!isBrowser) return;
   window.scrollTo({ top: 0, behavior: "instant" });
-  clampScrollToContent();
-}
-
-function clampScrollToContent(options = {}) {
-  if (!isBrowser) return;
-  const tolerance = Number(options.tolerance || 0);
-  requestAnimationFrame(() => {
-    const activeScreen = $(".screen.active");
-    if (!activeScreen) return;
-    const viewportHeight = window.visualViewport?.height || window.innerHeight;
-    const maxScroll = Math.max(0, browserDocument.documentElement.scrollHeight - viewportHeight);
-    if (window.scrollY > maxScroll + tolerance) window.scrollTo({ top: maxScroll, behavior: "instant" });
-  });
-}
-
-function scheduleViewportClamp(delay = 180) {
-  if (!isBrowser) return;
-  window.clearTimeout(viewportClampTimer);
-  viewportClampTimer = window.setTimeout(() => clampScrollToContent({ tolerance: 28 }), delay);
 }
 
 function watchViewportHeight() {
@@ -464,7 +444,6 @@ function updateViewportHeight() {
   if (!isBrowser) return;
   const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
   if (height > 0) browserDocument.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
-  scheduleViewportClamp();
 }
 
 function goBack(fallback = "home") {
@@ -1479,7 +1458,6 @@ function renderManualReview() {
     <div><span>Discount</span><strong>-${formatNative(draft.discount, currency)}</strong></div>
     <div class="review-total"><span>Total</span><strong>${formatNative(total, currency)}</strong></div>
   `;
-  clampScrollToContent();
 }
 
 function stepManualQuantity(row, delta) {
