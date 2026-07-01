@@ -660,8 +660,25 @@ function updateRateStatus(text) {
   if (status) status.textContent = text;
 }
 
+function resolvePersonIdForGroup(group) {
+  const people = group?.people || [];
+  const validIds = new Set(people.map((person) => person.id));
+  if (activePersonId && validIds.has(activePersonId)) return activePersonId;
+  const stored = readStorage(`trip-split-person-${group?.id}`) || "";
+  if (stored && validIds.has(stored)) return stored;
+  const email = cleanEmail(accountProfile?.email || readStorage(accountEmailKey) || "");
+  if (email) {
+    const byEmail = people.find((person) => cleanEmail(person.email) === email);
+    if (byEmail) return byEmail.id;
+  }
+  const profilePersonId = accountProfile?.personId || "";
+  if (profilePersonId && validIds.has(profilePersonId)) return profilePersonId;
+  return "";
+}
+
 async function initGroup(options = {}) {
   const allowJoin = Boolean(options.allowJoin);
+  const allowAccountResolve = options.allowAccountResolve !== false;
   if (!activeGroupId) return;
   writeStorage("trip-split-group-id", activeGroupId);
   try {
@@ -673,6 +690,14 @@ async function initGroup(options = {}) {
       if (knownPersonId) {
         activePersonId = knownPersonId;
         writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+      }
+    }
+    if (allowAccountResolve && (!activePersonId || !group.people.some((person) => person.id === activePersonId))) {
+      const accountPersonId = resolvePersonIdForGroup(group);
+      if (accountPersonId) {
+        activePersonId = accountPersonId;
+        writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+        rememberGroup(group, activePersonId);
       }
     }
     if (!activePersonId || !group.people.some((person) => person.id === activePersonId)) {
@@ -3103,15 +3128,6 @@ async function switchGroup(groupId) {
   const known = loadKnownGroups().find((group) => group.id === groupId);
   if (!known) return;
   const knownPersonId = known.personId || readStorage(`trip-split-person-${groupId}`) || "";
-  if (!knownPersonId) {
-    activeGroupId = "";
-    activePersonId = "";
-    activeGroup = null;
-    removeStorage("trip-split-group-id");
-    render();
-    showScreen("account", { resetStack: true });
-    return;
-  }
   activeGroupId = groupId;
   activePersonId = knownPersonId;
   writeStorage("trip-split-group-id", groupId);
