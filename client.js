@@ -3450,6 +3450,7 @@ function exportExpenseBreakdowns() {
     safeAlert("No people to export yet.");
     return;
   }
+  if (!safeConfirm("Export expense breakdowns for everyone in this trip?")) return;
   const lines = [];
   lines.push(`${activeGroup?.name || "Split My Trip"} expense breakdown`);
   lines.push(`Exported ${formatDateTime(new Date().toISOString())}`);
