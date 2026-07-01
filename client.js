@@ -3102,14 +3102,28 @@ async function cleanupKnownGroups(groups) {
 async function switchGroup(groupId) {
   const known = loadKnownGroups().find((group) => group.id === groupId);
   if (!known) return;
+  const knownPersonId = known.personId || readStorage(`trip-split-person-${groupId}`) || "";
+  if (!knownPersonId) {
+    activeGroupId = "";
+    activePersonId = "";
+    activeGroup = null;
+    removeStorage("trip-split-group-id");
+    render();
+    showScreen("account", { resetStack: true });
+    return;
+  }
   activeGroupId = groupId;
-  activePersonId = known.personId || readStorage(`trip-split-person-${groupId}`) || "";
+  activePersonId = knownPersonId;
   writeStorage("trip-split-group-id", groupId);
   if (activePersonId) writeStorage(`trip-split-person-${groupId}`, activePersonId);
-  await initGroup();
-  if (activePersonId) setAppGroupUrl();
+  await initGroup({ allowJoin: false });
   render();
-  showScreen(activePersonId ? "home" : "join");
+  if (activeGroupId && activePersonId && activeGroup) {
+    setAppGroupUrl();
+    showScreen("home");
+  } else {
+    showScreen(loadKnownGroups().length ? "groups" : "account", { resetStack: true });
+  }
 }
 
 function renderPeopleOptions() {
