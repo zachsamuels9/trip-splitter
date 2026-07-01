@@ -336,8 +336,8 @@ h2 {
 
 .quick-nav {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   margin: 14px 0;
 }
 
@@ -345,13 +345,18 @@ h2 {
   display: grid;
   place-items: center;
   gap: 5px;
-  min-height: 66px;
+  min-height: 64px;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(18, 24, 39, 0.9);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 900;
+}
+
+.quick-nav button svg {
+  width: 22px;
+  height: 22px;
 }
 
 .quick-nav button:disabled {
@@ -361,6 +366,10 @@ h2 {
 
 .quick-nav.trip-closed {
   grid-template-columns: 1fr;
+}
+
+.quick-nav.trip-closed button[data-screen="activity"] {
+  display: none;
 }
 
 .quick-nav.trip-closed button[data-screen="settle"] {
@@ -648,6 +657,7 @@ textarea {
 .manual-items,
 .items-list,
 .fees-list,
+.warning-list,
 .people-list,
 .totals-list,
 .history-list,
@@ -660,6 +670,41 @@ textarea {
 
 #pickItemsPanel .items-list {
   gap: 10px;
+}
+
+.warning-list {
+  gap: 10px;
+}
+
+.warning-row {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid rgba(255, 199, 74, 0.24);
+  border-radius: 16px;
+  background: rgba(255, 199, 74, 0.08);
+}
+
+.warning-row svg {
+  width: 20px;
+  height: 20px;
+  color: #ffc74a;
+}
+
+.warning-row strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.warning-row span {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 #historyList {

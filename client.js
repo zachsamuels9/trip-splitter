@@ -4,6 +4,7 @@ const groupsKey = "trip-split-known-groups-v1";
 const deletedGroupsKey = "trip-split-deleted-groups-v1";
 const accountEmailKey = "trip-split-account-email";
 const iosInstallChoiceKey = "trip-split-ios-install-choice-v1";
+const offlineQueueKey = "split-my-trip-offline-receipts-v1";
 const supportedCurrencies = ["USD", "THB", "VND"];
 const defaultRates = { USD: 1, THB: 36.7, VND: 25400 };
 const isBrowser = typeof window !== "undefined" && typeof document !== "undefined";
@@ -299,6 +300,7 @@ function bindEvents() {
   });
   $("#settingsCopyInvite").addEventListener("click", copyInviteLink);
   $("#settingsTextInvite").addEventListener("click", textInviteLink);
+  $("#exportExpenses").addEventListener("click", exportExpenseBreakdowns);
   $("#inviteHome").addEventListener("click", () => showScreen("home"));
   $("#downloadAllReceipts").addEventListener("click", downloadAllReceipts);
   $("#leaveTrip").addEventListener("click", leaveTrip);
@@ -885,7 +887,52 @@ async function saveGroupReceipt(receipt) {
     applyGroup(result.group);
     render();
   } catch {
-    $("#groupStatus").textContent = "Saved locally";
+    queueOfflineReceipt(activeGroupId, receipt);
+    $("#groupStatus").textContent = "Saved locally - will sync";
+  }
+}
+
+function loadOfflineQueue() {
+  const saved = readStorage(offlineQueueKey);
+  if (!saved) return [];
+  try {
+    return JSON.parse(saved).filter((entry) => entry?.groupId && entry?.receipt?.id);
+  } catch {
+    return [];
+  }
+}
+
+function saveOfflineQueue(queue) {
+  writeStorage(offlineQueueKey, JSON.stringify(queue.slice(-30)));
+}
+
+function queueOfflineReceipt(groupId, receipt) {
+  const queue = loadOfflineQueue().filter((entry) => !(entry.groupId === groupId && entry.receipt?.id === receipt.id));
+  queue.push({ groupId, receipt, queuedAt: new Date().toISOString() });
+  saveOfflineQueue(queue);
+}
+
+async function processOfflineQueue() {
+  if (!activeGroupId || !activePersonId) return;
+  const queue = loadOfflineQueue();
+  const current = queue.filter((entry) => entry.groupId === activeGroupId);
+  if (!current.length) return;
+  const remaining = queue.filter((entry) => entry.groupId !== activeGroupId);
+  for (const entry of current) {
+    try {
+      await api(`/api/groups/${entry.groupId}/receipts`, {
+        method: "POST",
+        body: { receipt: entry.receipt },
+      });
+    } catch {
+      remaining.push(entry);
+    }
+  }
+  saveOfflineQueue(remaining);
+  if (remaining.length !== queue.length) {
+    const group = await api(`/api/groups/${activeGroupId}`);
+    applyGroup(group);
+    render();
   }
 }
 
@@ -914,6 +961,7 @@ async function syncGroup() {
     const group = await api(`/api/groups/${activeGroupId}`);
     applyGroup(group);
     render();
+    processOfflineQueue().catch(() => null);
   } catch {
     $("#groupStatus").textContent = "Sync paused";
   }
@@ -1029,6 +1077,7 @@ async function scanImage(event) {
 
   try {
     const originalImageDataUrl = await fileToDataUrl(file);
+    const photoWarnings = await assessReceiptPhoto(originalImageDataUrl, file);
     setScanStep("prepared");
     const imageDataUrl = await optimizeImageDataUrl(originalImageDataUrl);
     setScanStep("compressed");
@@ -1039,6 +1088,7 @@ async function scanImage(event) {
     $("#receiptCurrency").value = detectedCurrency;
     parsedReceipt = receiptFromOcrResult(ocr, imageDataUrl, detectedCurrency);
     parsedReceipt.ocrText = text;
+    parsedReceipt.reviewWarnings = [...(parsedReceipt.reviewWarnings || []), ...photoWarnings];
     if (!parsedReceipt.items.length) {
       updateScanProgress("Needs review", "Document AI did not return priced items. Add them manually below.", false);
       showConfirmItems();
@@ -1164,6 +1214,43 @@ function optimizeImageDataUrl(imageDataUrl) {
   });
 }
 
+function assessReceiptPhoto(imageDataUrl, file) {
+  return new Promise((resolve) => {
+    if (!isBrowser) {
+      resolve([]);
+      return;
+    }
+    const warnings = [];
+    const size = Number(file?.size || 0);
+    if (size && size < 120_000) {
+      warnings.push({
+        title: "Photo may be low detail",
+        text: "Small image files can make item names and totals harder to read. Double-check the scanned items.",
+      });
+    }
+    const image = new Image();
+    image.onload = () => {
+      const shortSide = Math.min(image.width, image.height);
+      const longSide = Math.max(image.width, image.height);
+      if (shortSide < 900 || longSide < 1200) {
+        warnings.push({
+          title: "Photo resolution is limited",
+          text: "If anything looks off, retake the receipt closer and flatter.",
+        });
+      }
+      if (longSide / Math.max(1, shortSide) > 3.4) {
+        warnings.push({
+          title: "Receipt may be cropped or angled",
+          text: "Long narrow photos are okay, but make sure all totals and item rows are visible.",
+        });
+      }
+      resolve(warnings);
+    };
+    image.onerror = () => resolve(warnings);
+    image.src = imageDataUrl;
+  });
+}
+
 function prepareScanReceipt() {
   parsedReceipt = {
     currency: $("#receiptCurrency").value,
@@ -1229,6 +1316,7 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
     currencyNeedsReview: currencyGuess.needsReview,
     ocrProvider: ocr.provider,
     ocrWarnings: structured.warnings || [],
+    ocrTotalNative: Number(structured.total || 0),
   };
   const subtotal = sum(receipt.items.map((item) => item.amount));
   const knownTotal = Number(structured.total || 0);
@@ -1236,6 +1324,7 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
   if (knownTotal > calculated + 0.02 && receipt.items.length) {
     receipt.fees.push({ id: createId(), name: "Unitemized amount", amount: roundCents(knownTotal - calculated) });
   }
+  receipt.reviewWarnings = buildReceiptWarnings(receipt);
   return receipt;
 }
 
@@ -1250,6 +1339,51 @@ function inferReceiptCurrency(receipt, text, fallback = "USD") {
   if (receiptCurrency === "USD" && /\bUSD\b|United States|Arizona|California|New York|Texas|Florida/i.test(context)) return { currency: "USD", needsReview: false };
   const safeFallback = supportedCurrencies.includes(fallback) ? fallback : "THB";
   return { currency: safeFallback || "THB", needsReview: true };
+}
+
+function buildReceiptWarnings(receipt) {
+  const warnings = [...(receipt.reviewWarnings || [])];
+  if (receipt.currencyNeedsReview) {
+    warnings.push({
+      title: "Currency needs confirmation",
+      text: "The scan was not fully sure which currency this receipt uses. Confirm before continuing.",
+    });
+  }
+  if (!(receipt.items || []).length) {
+    warnings.push({
+      title: "No itemized rows found",
+      text: "The scan did not find priced items. Add or edit items before splitting.",
+    });
+  }
+  const ocrWarnings = receipt.ocrWarnings || [];
+  if (ocrWarnings.length) {
+    warnings.push({
+      title: "Scan returned partial notes",
+      text: ocrWarnings.slice(0, 2).join(" "),
+    });
+  }
+  const knownTotal = Number(receipt.ocrTotalNative || 0);
+  if (knownTotal > 0) {
+    const calculated = receiptTotal(receipt);
+    const delta = roundCents(Math.abs(knownTotal - calculated));
+    if (delta > Math.max(0.05, knownTotal * 0.015)) {
+      warnings.push({
+        title: "Total does not perfectly match",
+        text: `Scanned total was ${formatNative(knownTotal, receipt.currency)} but current details add to ${formatNative(calculated, receipt.currency)}.`,
+      });
+    }
+  }
+  return dedupeWarnings(warnings);
+}
+
+function dedupeWarnings(warnings) {
+  const seen = new Set();
+  return warnings.filter((warning) => {
+    const key = `${warning.title}|${warning.text}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function parseReceipt(text, currency, meta = {}) {
@@ -1714,6 +1848,7 @@ function renderAssignment() {
   $("#itemizeKicker").textContent = itemizeStage === "confirm" ? (parsedReceipt.source === "manual" ? "Review expense" : "Smart scan by AI") : "Receipt total";
   $("#screen-itemize .back-button").dataset.screen = itemizeStage === "assign" ? "split-choice" : parsedReceipt.source === "manual" ? "manual" : "home";
   renderReceiptTotals();
+  renderReceiptWarnings();
   $("#pickItemsPanel h2").textContent = itemizeStage === "confirm" ? "Items" : "Select items";
   $("#itemCountLabel").textContent = `${parsedReceipt.items.length} item${parsedReceipt.items.length === 1 ? "" : "s"}`;
   $("#evenPeopleLabel").textContent = `${splitCount} ${splitCount === 1 ? "person" : "people"}`;
@@ -1944,6 +2079,27 @@ function renderReceiptTotals() {
   else $("#saveReceiptLabel").textContent = splitMode === "even" ? `Review ${formatNative(total, parsedReceipt.currency)}` : "Review selections";
 }
 
+function renderReceiptWarnings() {
+  if (!parsedReceipt) return;
+  parsedReceipt.reviewWarnings = buildReceiptWarnings(parsedReceipt);
+  const warnings = parsedReceipt.reviewWarnings || [];
+  $("#receiptWarningsPanel").classList.toggle("hidden", itemizeStage !== "confirm" || warnings.length === 0);
+  $("#receiptWarningCount").textContent = String(warnings.length);
+  $("#receiptWarningsList").innerHTML = warnings
+    .map(
+      (warning) => `
+        <div class="warning-row">
+          <i data-lucide="triangle-alert"></i>
+          <div>
+            <strong>${escapeHtml(warning.title || "Review needed")}</strong>
+            <span>${escapeHtml(warning.text || "Double-check this receipt before continuing.")}</span>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+}
+
 function renderFeesList() {
   if (!parsedReceipt) return;
   const rows = [
@@ -2018,6 +2174,7 @@ function updateParsedAdjustments() {
   setAdjustmentAmount("fees", Number($("#reviewFees").value || 0));
   parsedReceipt.discount = Number($("#reviewDiscount").value || 0);
   renderReceiptTotals();
+  renderReceiptWarnings();
   renderFeesList();
   renderReviewSummary();
 }
@@ -2576,6 +2733,12 @@ function saveReceipt(assignLater = false, directToExpenses = false) {
     items: parsedReceipt.items,
     fees: parsedReceipt.fees,
     discount: parsedReceipt.discount || 0,
+    reviewWarnings: parsedReceipt.reviewWarnings || [],
+    activity: {
+      action: editingReceiptId ? "updated" : assignLater ? "added pending" : "logged",
+      actorId: activePersonId,
+      at: new Date().toISOString(),
+    },
     shares,
     totalNative: receiptTotal(parsedReceipt),
     totalUsd: toUsd(receiptTotal(parsedReceipt), parsedReceipt.currency),
@@ -2695,6 +2858,7 @@ function render() {
   renderTotals();
   renderHistory();
   renderSettlements();
+  renderActivity();
   renderSummary();
   renderManualReview();
   renderExpenses();
@@ -3334,6 +3498,7 @@ function openReceiptForClaiming(receiptId) {
 function renderSettlements() {
   const settlements = calculateSettlements();
   const settledIds = settledSettlementIds();
+  const settledDetails = settledSettlementDetails();
   const active = settlements.filter((settlement) => !settledIds.includes(settlement.id));
   const archived = settlements.filter((settlement) => settledIds.includes(settlement.id));
   const receiveAmount = roundCents(sum(active.filter((settlement) => settlement.toId === activePersonId).map((settlement) => settlement.amount)));
@@ -3365,7 +3530,7 @@ function renderSettlements() {
               <div class="settle-row">
                 <div class="settle-copy">
                   <div class="row-name">${escapeHtml(settlement.from)} paid ${escapeHtml(settlement.to)}</div>
-                  <div class="subtext">Archived settlement</div>
+                  <div class="subtext">${escapeHtml(settledDetails[settlement.id]?.method || "Settled")}${settledDetails[settlement.id]?.note ? ` · ${escapeHtml(settledDetails[settlement.id].note)}` : ""}</div>
                 </div>
                 <div class="money settlement-amount">${money.format(settlement.amount)}</div>
                 <button class="small-primary full settle-button" data-unsettle="${settlement.id}"><span>Tap to unsettle</span></button>
@@ -3380,6 +3545,102 @@ function renderSettlements() {
   });
   $$("[data-settle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.settle, true)));
   $$("[data-unsettle]").forEach((button) => button.addEventListener("click", () => markSettlement(button.dataset.unsettle, false)));
+}
+
+function renderActivity() {
+  const rows = tripActivityRows();
+  $("#activityCount").textContent = String(rows.length);
+  $("#activityList").innerHTML = rows.length
+    ? rows
+        .map(
+          (row) => `
+            <article class="history-row">
+              <div class="row-head">
+                <div>
+                  <div class="row-name">${escapeHtml(row.title)}</div>
+                  <div class="subtext">${escapeHtml(row.detail)}</div>
+                </div>
+                <div class="subtext">${escapeHtml(formatShortDate(row.at, { month: "short", day: "numeric" }))}</div>
+              </div>
+            </article>
+          `
+        )
+        .join("")
+    : `<div class="empty">Trip changes will appear here.</div>`;
+}
+
+function exportExpenseBreakdowns() {
+  if (!state.people.length) {
+    safeAlert("No people to export yet.");
+    return;
+  }
+  const lines = [];
+  lines.push(`${activeGroup?.name || "Split My Trip"} expense breakdown`);
+  lines.push(`Exported ${formatDateTime(new Date().toISOString())}`);
+  lines.push("");
+  state.people.forEach((person) => {
+    const totals = personTotals(person.id);
+    lines.push(`${person.name}`);
+    lines.push(`Share: ${money.format(totals.owed)} · Paid: ${money.format(totals.paid)}`);
+    const receipts = state.receipts.filter((receipt) => (receiptShares(receipt).usd[person.id] || 0) > 0 || receipt.paidBy === person.id);
+    if (!receipts.length) {
+      lines.push("No expenses.");
+    } else {
+      receipts.forEach((receipt) => {
+        const shareUsd = receiptShares(receipt).usd[person.id] || 0;
+        const paid = receipt.paidBy === person.id ? ` · paid ${money.format(receipt.totalUsd || 0)}` : "";
+        lines.push(`- ${receipt.name || "Receipt"} (${formatShortDate(receipt.date || receipt.createdAt, {})}): share ${money.format(shareUsd)}${paid}`);
+      });
+    }
+    lines.push("");
+  });
+  downloadTextFile(`${slugify(activeGroup?.name || "split-my-trip")}-expenses.txt`, lines.join("\n"));
+}
+
+function downloadTextFile(filename, text) {
+  if (!isBrowser) return;
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = browserDocument.createElement("a");
+  link.href = url;
+  link.download = filename;
+  browserDocument.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function slugify(value) {
+  return String(value || "export").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "export";
+}
+
+function tripActivityRows() {
+  const rows = [];
+  state.receipts.forEach((receipt) => {
+    const actor = findPerson(receipt.activity?.actorId)?.name || findPerson(receipt.paidBy)?.name || "Someone";
+    const action = receipt.activity?.action || "logged";
+    rows.push({
+      at: receipt.activity?.at || receipt.createdAt || receipt.date || new Date().toISOString(),
+      title: `${actor} ${action} ${receipt.name || "an expense"}`,
+      detail: `${formatNative(receipt.totalNative ?? receiptTotal(receipt), receipt.currency)} · ${receipt.assignmentStatus === "pending" ? "Needs splitting" : "Complete"}`,
+    });
+  });
+  Object.entries(settledSettlementDetails()).forEach(([id, detail]) => {
+    const settlement = calculateSettlements().find((item) => item.id === id);
+    rows.push({
+      at: detail.at || new Date().toISOString(),
+      title: settlement ? `${settlement.from} settled ${settlement.to}` : "Settlement recorded",
+      detail: `${detail.method || "Marked settled"}${detail.note ? ` · ${detail.note}` : ""}`,
+    });
+  });
+  if (activeGroup?.closedAt) {
+    rows.push({
+      at: activeGroup.closedAt,
+      title: "Trip closed",
+      detail: "New expenses were locked for settlement.",
+    });
+  }
+  return rows.sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0)).slice(0, 40);
 }
 
 function updateSettleNavState(activeSettlementCount) {
@@ -3399,12 +3660,43 @@ function settledSettlementIds() {
   }
 }
 
+function settledSettlementDetails() {
+  const saved = readStorage(`trip-split-settled-details-${activeGroupId}`) || "{}";
+  try {
+    return JSON.parse(saved);
+  } catch {
+    return {};
+  }
+}
+
 function markSettlement(id, settled) {
   const ids = new Set(settledSettlementIds());
+  const details = settledSettlementDetails();
   if (settled) ids.add(id);
   else ids.delete(id);
+  if (settled) {
+    const method = chooseSettlementMethod();
+    if (!method) return;
+    const note = safePrompt("Add an optional settlement note.", "");
+    details[id] = { method, note: String(note || "").trim(), at: new Date().toISOString() };
+  } else {
+    delete details[id];
+  }
   writeStorage(`trip-split-settled-${activeGroupId}`, JSON.stringify([...ids]));
+  writeStorage(`trip-split-settled-details-${activeGroupId}`, JSON.stringify(details));
   renderSettlements();
+  renderActivity();
+}
+
+function chooseSettlementMethod() {
+  const value = safePrompt("How was this settled? Enter Zelle, Venmo, or Cash.", "Venmo");
+  if (value === null) return "";
+  const clean = String(value || "").trim().toLowerCase();
+  if (clean.startsWith("z")) return "Zelle";
+  if (clean.startsWith("v")) return "Venmo";
+  if (clean.startsWith("c")) return "Cash";
+  safeAlert("Use Zelle, Venmo, or Cash.");
+  return "";
 }
 
 function renderSummary() {

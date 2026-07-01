@@ -132,6 +132,7 @@
         <nav class="quick-nav" aria-label="Views">
           <button data-screen="expenses"><i data-lucide="wallet-cards"></i><span>My expenses</span></button>
           <button data-screen="settle"><i data-lucide="hand-coins"></i><span>Settle</span></button>
+          <button data-screen="activity"><i data-lucide="list-clock"></i><span>Activity</span></button>
         </nav>
 
         <section class="panel action-panel">
@@ -399,6 +400,14 @@
             </select>
             <button class="small-primary" id="confirmCurrency"><span>Confirm</span></button>
           </div>
+        </section>
+
+        <section class="panel hidden receipt-warnings" id="receiptWarningsPanel">
+          <div class="section-title">
+            <h2>Review notes</h2>
+            <span id="receiptWarningCount">0</span>
+          </div>
+          <div id="receiptWarningsList" class="warning-list"></div>
         </section>
 
         <section class="panel receipt-tip-panel" id="receiptTipPanel">
@@ -716,6 +725,20 @@
         </section>
       </section>
 
+      <section class="screen" id="screen-activity">
+        <header class="flow-header">
+          <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
+          <h1>Activity</h1>
+        </header>
+        <section class="panel">
+          <div class="section-title">
+            <h2>Trip activity</h2>
+            <span id="activityCount">0</span>
+          </div>
+          <div id="activityList" class="history-list"></div>
+        </section>
+      </section>
+
       <section class="screen" id="screen-settings">
         <header class="flow-header">
           <button class="back-button" data-screen="home" aria-label="Back"><i data-lucide="chevron-left"></i></button>
@@ -726,6 +749,7 @@
           <button class="primary full secondary-action" id="settingsInvite"><i data-lucide="user-plus"></i><span>Invite</span></button>
           <button class="primary full secondary-action" data-screen="people"><i data-lucide="users"></i><span>People</span></button>
           <button class="primary full secondary-action" data-screen="totals"><i data-lucide="receipt-text"></i><span>Browse receipts</span></button>
+          <button class="primary full secondary-action" id="exportExpenses"><i data-lucide="file-down"></i><span>Export expenses</span></button>
           <button class="primary full secondary-action" id="showInstallHelp"><i data-lucide="smartphone"></i><span>Add to Home Screen</span></button>
           <button class="primary full danger-action" id="leaveTrip"><i data-lucide="log-out"></i><span>Leave this trip</span></button>
           <button class="primary full danger-action hidden" id="closeTrip"><i data-lucide="lock"></i><span id="closeTripLabel">Close trip and settle</span></button>
