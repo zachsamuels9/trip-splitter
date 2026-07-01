@@ -2397,13 +2397,16 @@ function distributeQuantity(quantity, people) {
 
 function updateSelectionBar() {
   if (!parsedReceipt) return;
+  const actions = $("#itemizeActions");
   if (itemizeStage === "confirm") {
     $("#selectionTotal").classList.add("hidden");
     $("#saveLaterReceipt").classList.add("hidden");
     $("#reviewSelections").classList.remove("hidden");
-    $("#itemizeActions").classList.remove("inline-actions");
+    actions.classList.remove("inline-actions");
+    actions.classList.add("confirm-actions");
     return;
   }
+  actions.classList.remove("confirm-actions");
   collectAssignmentChoices();
   const hasSelection = splitMode === "even" || splitMode === "amounts" || selectedItemsForActivePerson().length > 0;
   $("#selectionTotal").classList.toggle("hidden", !hasSelection);
@@ -3202,15 +3205,49 @@ function isTripOwner() {
   return readStorage(`trip-split-owner-${activeGroupId}`) === activePersonId;
 }
 
-function removePerson(personId) {
-  const used = state.receipts.some(
-    (receipt) => receipt.paidBy === personId || Object.keys(receipt.shares.usd).some((id) => id === personId && receipt.shares.usd[id] > 0)
-  );
-  if (used) {
-    safeAlert("This person is already in a receipt. Reset the trip to remove them.");
+async function removePerson(personId) {
+  if (!personId) return;
+  const person = findPerson(personId);
+  const removingSelf = personId === activePersonId;
+  const name = person?.name || "this person";
+  const message = removingSelf
+    ? "Remove yourself from this trip? You will need an invite link to rejoin."
+    : `Remove ${name} from this trip? Their item assignments will be cleared.`;
+  if (!safeConfirm(message)) return;
+
+  if (activeGroupId) {
+    try {
+      const result = await api(`/api/groups/${activeGroupId}/people/${personId}`, { method: "DELETE" });
+      if (removingSelf) {
+        const leavingGroupId = activeGroupId;
+        removeStorage(`trip-split-person-${leavingGroupId}`);
+        removeStorage("trip-split-group-id");
+        forgetKnownGroup(leavingGroupId);
+        activePersonId = "";
+        activeGroupId = "";
+        activeGroup = null;
+        state = defaultState();
+        render();
+        const remainingGroups = loadKnownGroups();
+        showScreen(remainingGroups.length ? "groups" : "start", { resetStack: true });
+        return;
+      }
+      applyGroup(result.group);
+      render();
+    } catch (error) {
+      safeAlert(readApiError(error) || `Could not remove ${name}.`);
+    }
     return;
   }
-  state.people = state.people.filter((person) => person.id !== personId);
+
+  state.people = state.people.filter((item) => item.id !== personId);
+  state.receipts.forEach((receipt) => {
+    if (receipt.paidBy === personId) receipt.paidBy = "";
+    if (receipt.shares?.native) delete receipt.shares.native[personId];
+    if (receipt.shares?.usd) delete receipt.shares.usd[personId];
+    receipt.items.forEach((item) => removePersonFromItem(item, personId));
+  });
+  if (removingSelf) activePersonId = "";
   saveState();
   render();
 }

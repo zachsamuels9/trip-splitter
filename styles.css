@@ -1935,6 +1935,14 @@ textarea {
   margin-top: 18px;
 }
 
+.sticky-actions.confirm-actions {
+  bottom: 0;
+  width: calc(100% + 32px);
+  margin: 18px -16px 0;
+  padding: 12px 16px max(14px, calc(env(safe-area-inset-bottom) + 12px));
+  background: linear-gradient(180deg, rgba(4, 2, 8, 0), rgba(17, 7, 36, 0.96) 28%, rgba(17, 7, 36, 0.98));
+}
+
 .sticky-actions.inline-actions {
   position: static;
   width: 100%;
