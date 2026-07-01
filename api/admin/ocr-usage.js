@@ -1,4 +1,4 @@
-const { getOcrUsage, setActiveMonthlyLimit } = require("../../lib/ocr-usage-store");
+const { getOcrUsage, setActiveMonthlyLimit, usageMonth } = require("../../lib/ocr-usage-store");
 
 module.exports = async function handler(req, res) {
   try {
@@ -12,10 +12,11 @@ module.exports = async function handler(req, res) {
       return;
     }
     if (req.method === "PATCH") {
-      res.status(200).json({ usage: await setActiveMonthlyLimit(parseBody(req.body).limit) });
+      const body = parseBody(req.body);
+      res.status(200).json({ usage: await setActiveMonthlyLimit(body.limit, localUsageMonth(req.query.timeZone || body.timeZone || "")) });
       return;
     }
-    res.status(200).json({ usage: await getOcrUsage() });
+    res.status(200).json({ usage: await getOcrUsage(localUsageMonth(req.query.timeZone || "")) });
   } catch (error) {
     res.status(error.statusCode || 500).json({ error: error.message || "Server error" });
   }
@@ -31,4 +32,8 @@ function parseBody(body) {
     }
   }
   return body;
+}
+
+function localUsageMonth(timeZone) {
+  return usageMonth(new Date(), timeZone);
 }

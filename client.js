@@ -34,6 +34,7 @@ let expensesReturnHomeMode = false;
 let knownGroupsCleanupInFlight = false;
 let displayCurrencyIndex = 0;
 const displayCurrencies = ["USD", "THB", "VND"];
+let viewportClampTimer = null;
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -431,22 +432,28 @@ function trimPageToContent() {
   clampScrollToContent();
 }
 
-function clampScrollToContent() {
+function clampScrollToContent(options = {}) {
   if (!isBrowser) return;
+  const tolerance = Number(options.tolerance || 0);
   requestAnimationFrame(() => {
     const activeScreen = $(".screen.active");
     if (!activeScreen) return;
     const viewportHeight = window.visualViewport?.height || window.innerHeight;
     const maxScroll = Math.max(0, browserDocument.documentElement.scrollHeight - viewportHeight);
-    if (window.scrollY > maxScroll) window.scrollTo({ top: maxScroll, behavior: "instant" });
+    if (window.scrollY > maxScroll + tolerance) window.scrollTo({ top: maxScroll, behavior: "instant" });
   });
+}
+
+function scheduleViewportClamp(delay = 180) {
+  if (!isBrowser) return;
+  window.clearTimeout(viewportClampTimer);
+  viewportClampTimer = window.setTimeout(() => clampScrollToContent({ tolerance: 28 }), delay);
 }
 
 function watchViewportHeight() {
   if (!isBrowser) return;
   updateViewportHeight();
   window.visualViewport?.addEventListener("resize", updateViewportHeight);
-  window.visualViewport?.addEventListener("scroll", clampScrollToContent);
   window.addEventListener("resize", updateViewportHeight);
   window.addEventListener("orientationchange", () => {
     setTimeout(updateViewportHeight, 250);
@@ -457,7 +464,7 @@ function updateViewportHeight() {
   if (!isBrowser) return;
   const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
   if (height > 0) browserDocument.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
-  clampScrollToContent();
+  scheduleViewportClamp();
 }
 
 function goBack(fallback = "home") {
@@ -1004,7 +1011,7 @@ async function readWithRemoteOcr(imageDataUrl) {
   const response = await fetch("/api/ocr", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ imageDataUrl }),
+    body: JSON.stringify({ imageDataUrl, timeZone: deviceTimeZone() }),
   });
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}));
@@ -1042,7 +1049,7 @@ function prepareScanReceipt() {
     currency: $("#receiptCurrency").value,
     name: "Scanned receipt",
     restaurantName: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: todayDate(),
     items: [],
     fees: [],
     discount: 0,
@@ -1062,7 +1069,7 @@ function receiptFromOcrResult(ocr, imageDataUrl, fallbackCurrency) {
   const fallback = parseReceipt(text, currency, {
     name: fallbackName,
     restaurantName: structured.merchant || "",
-    date: structured.date || detectReceiptDate(text) || new Date().toISOString().slice(0, 10),
+    date: structured.date || detectReceiptDate(text) || todayDate(),
     source: "scan",
     imageDataUrl,
   });
@@ -1187,7 +1194,7 @@ function parseReceipt(text, currency, meta = {}) {
     currency,
     name: meta.name || "Scanned receipt",
     restaurantName: meta.restaurantName || "",
-    date: meta.date || new Date().toISOString().slice(0, 10),
+    date: meta.date || todayDate(),
     location: meta.location || "",
     description: meta.description || "",
     source: meta.source || "scan",
@@ -1362,7 +1369,7 @@ function seedManualRows() {
 }
 
 function setTodayIfBlank() {
-  if (!$("#manualDate").value) $("#manualDate").value = new Date().toISOString().slice(0, 10);
+  if (!$("#manualDate").value) $("#manualDate").value = todayDate();
 }
 
 async function storeManualAttachment(event) {
@@ -1510,7 +1517,7 @@ function buildManualReceipt() {
   parsedReceipt = {
     currency: $("#receiptCurrency").value,
     name: $("#manualName").value.trim() || "Dinner",
-    date: $("#manualDate").value || new Date().toISOString().slice(0, 10),
+    date: $("#manualDate").value || todayDate(),
     paidBy: $("#paidBy").value,
     description: $("#manualDescription").value.trim(),
     source: "manual",
@@ -1856,7 +1863,7 @@ function setReviewValue(id, value) {
 function updateParsedDetails() {
   if (!parsedReceipt) return;
   parsedReceipt.name = $("#reviewName").value.trim() || "Receipt";
-  parsedReceipt.date = $("#reviewDate").value || new Date().toISOString().slice(0, 10);
+  parsedReceipt.date = $("#reviewDate").value || todayDate();
   parsedReceipt.description = $("#reviewNotes").value.trim();
   $("#itemizeTitle").textContent = parsedReceipt.name;
   renderReviewSummary();
@@ -2792,7 +2799,7 @@ async function loadAdminOcrUsage(password = $("#adminPassword").value) {
   $("#adminOcrMonth").textContent = "This month";
   $("#adminOcrUsage").innerHTML = `<div class="empty">Loading OCR usage...</div>`;
   try {
-    const ocrUsage = await api(`/api/admin/ocr-usage?password=${encodeURIComponent(password)}`);
+    const ocrUsage = await api(`/api/admin/ocr-usage?password=${encodeURIComponent(password)}&timeZone=${encodeURIComponent(deviceTimeZone())}`);
     renderOcrUsageSummary(ocrUsage.usage, $("#adminOcrMonth"), $("#adminOcrUsage"));
   } catch (error) {
     renderOcrUsageError(readApiError(error));
@@ -2909,7 +2916,10 @@ async function saveOcrLimit(scope, monthEl, targetEl) {
   }
   if (status) status.textContent = "Saving...";
   try {
-    const result = await api(`/api/admin/ocr-usage?password=${encodeURIComponent($("#adminPassword").value)}`, { method: "PATCH", body: { limit } });
+    const result = await api(`/api/admin/ocr-usage?password=${encodeURIComponent($("#adminPassword").value)}&timeZone=${encodeURIComponent(deviceTimeZone())}`, {
+      method: "PATCH",
+      body: { limit, timeZone: deviceTimeZone() },
+    });
     renderOcrUsageSummary(result.usage, monthEl, targetEl);
     const nextStatus = $(`#${scope}OcrLimitStatus`);
     if (nextStatus) nextStatus.textContent = "Saved.";
@@ -3432,6 +3442,19 @@ function currencySymbol(currency) {
 function formatRate(currency, rate) {
   if (currency === "USD") return "$1";
   return `$1 = ${currencySymbol(currency)}${Number(rate).toLocaleString("en-US", { maximumFractionDigits: currency === "VND" ? 0 : 2 })}`;
+}
+
+function deviceTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+  } catch {
+    return "";
+  }
+}
+
+function todayDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
 function formatLongDate(value) {

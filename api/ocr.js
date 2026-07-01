@@ -16,7 +16,7 @@ module.exports = async function handler(req, res) {
   try {
     const body = await readRawBody(req);
     const payload = JSON.parse(body.toString("utf8") || "{}");
-    const result = await processReceiptImage({ imageDataUrl: payload.imageDataUrl || "" });
+    const result = await processReceiptImage({ imageDataUrl: payload.imageDataUrl || "", timeZone: payload.timeZone || "" });
     res.status(200).json(result);
   } catch (error) {
     res.status(error.statusCode || 500).json({

@@ -19,7 +19,7 @@ const {
   updateAccount,
   upsertReceipt,
 } = require("./lib/group-store");
-const { getOcrUsage, setActiveMonthlyLimit } = require("./lib/ocr-usage-store");
+const { getOcrUsage, setActiveMonthlyLimit, usageMonth } = require("./lib/ocr-usage-store");
 const { processReceiptImage } = require("./lib/receipt-ocr-service");
 
 const root = fs.existsSync(path.join(__dirname, "public")) ? path.join(__dirname, "public") : __dirname;
@@ -109,16 +109,17 @@ async function handleApi(req, res, url) {
       sendJson(res, 401, { error: "Unauthorized" });
       return;
     }
+    const month = usageMonth(new Date(), url.searchParams.get("timeZone") || "");
     if (req.method === "PATCH") {
       const body = await readBody(req);
-      sendJson(res, 200, { usage: await setActiveMonthlyLimit(body.limit) });
+      sendJson(res, 200, { usage: await setActiveMonthlyLimit(body.limit, month) });
       return;
     }
     if (req.method !== "GET") {
       sendJson(res, 405, { error: "Method not allowed" });
       return;
     }
-    sendJson(res, 200, { usage: await getOcrUsage() });
+    sendJson(res, 200, { usage: await getOcrUsage(month) });
     return;
   }
 
@@ -163,7 +164,7 @@ async function handleApi(req, res, url) {
   if (req.method === "POST" && url.pathname === "/api/ocr") {
     const body = await readRawBody(req);
     const payload = JSON.parse(body.toString("utf8") || "{}");
-    const result = await processReceiptImage({ imageDataUrl: payload.imageDataUrl || "" });
+    const result = await processReceiptImage({ imageDataUrl: payload.imageDataUrl || "", timeZone: payload.timeZone || "" });
     sendJson(res, 200, result);
     return;
   }
