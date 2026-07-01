@@ -42,6 +42,7 @@ const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD
 if (isBrowser) {
   browserDocument.addEventListener("DOMContentLoaded", async () => {
     browserDocument.body.classList.toggle("standalone-webapp", isStandaloneWebApp());
+    watchViewportHeight();
     bindEvents();
     seedManualRows();
     registerServiceWorker();
@@ -435,9 +436,28 @@ function clampScrollToContent() {
   requestAnimationFrame(() => {
     const activeScreen = $(".screen.active");
     if (!activeScreen) return;
-    const maxScroll = Math.max(0, browserDocument.documentElement.scrollHeight - window.innerHeight);
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    const maxScroll = Math.max(0, browserDocument.documentElement.scrollHeight - viewportHeight);
     if (window.scrollY > maxScroll) window.scrollTo({ top: maxScroll, behavior: "instant" });
   });
+}
+
+function watchViewportHeight() {
+  if (!isBrowser) return;
+  updateViewportHeight();
+  window.visualViewport?.addEventListener("resize", updateViewportHeight);
+  window.visualViewport?.addEventListener("scroll", clampScrollToContent);
+  window.addEventListener("resize", updateViewportHeight);
+  window.addEventListener("orientationchange", () => {
+    setTimeout(updateViewportHeight, 250);
+  });
+}
+
+function updateViewportHeight() {
+  if (!isBrowser) return;
+  const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  if (height > 0) browserDocument.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
+  clampScrollToContent();
 }
 
 function goBack(fallback = "home") {
