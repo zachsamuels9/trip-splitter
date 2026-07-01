@@ -1929,10 +1929,10 @@ textarea {
 
 .sticky-actions {
   position: sticky;
-  bottom: max(16px, env(safe-area-inset-bottom));
+  bottom: max(8px, calc(env(safe-area-inset-bottom) + 4px));
   z-index: 10;
   width: 100%;
-  margin-top: 18px;
+  margin-top: 40px;
 }
 
 .sticky-actions.inline-actions {
