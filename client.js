@@ -2397,16 +2397,13 @@ function distributeQuantity(quantity, people) {
 
 function updateSelectionBar() {
   if (!parsedReceipt) return;
-  const actions = $("#itemizeActions");
   if (itemizeStage === "confirm") {
     $("#selectionTotal").classList.add("hidden");
     $("#saveLaterReceipt").classList.add("hidden");
     $("#reviewSelections").classList.remove("hidden");
-    actions.classList.remove("inline-actions");
-    actions.classList.add("confirm-actions");
+    $("#itemizeActions").classList.remove("inline-actions");
     return;
   }
-  actions.classList.remove("confirm-actions");
   collectAssignmentChoices();
   const hasSelection = splitMode === "even" || splitMode === "amounts" || selectedItemsForActivePerson().length > 0;
   $("#selectionTotal").classList.toggle("hidden", !hasSelection);
