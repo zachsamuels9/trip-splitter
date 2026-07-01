@@ -34,6 +34,7 @@ let expensesReturnHomeMode = false;
 let knownGroupsCleanupInFlight = false;
 let displayCurrencyIndex = 0;
 const displayCurrencies = ["USD", "THB", "VND"];
+let pullRefreshState = { startY: 0, distance: 0, pulling: false, refreshing: false };
 
 const $ = (selector) => browserDocument?.querySelector(selector) || null;
 const $$ = (selector) => Array.from(browserDocument?.querySelectorAll(selector) || []);
@@ -47,6 +48,7 @@ if (isBrowser) {
     seedManualRows();
     registerServiceWorker();
     lockPortraitOrientation();
+    installPullToRefresh();
     state.receipts = normalizeReceipts(state.receipts);
     refreshRates();
     if (isAdminRoute()) {
@@ -434,6 +436,82 @@ function trimPageToContent() {
 
 function appScroller() {
   return $(".shell") || null;
+}
+
+function installPullToRefresh() {
+  if (!isBrowser || !window.PointerEvent) return;
+  const scroller = appScroller();
+  if (!scroller) return;
+  const indicator = browserDocument.createElement("div");
+  indicator.className = "pull-refresh-indicator";
+  indicator.innerHTML = `<i data-lucide="refresh-cw"></i><span>Pull to refresh</span>`;
+  browserDocument.body.appendChild(indicator);
+
+  scroller.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" || pullRefreshState.refreshing || scroller.scrollTop > 0) return;
+    pullRefreshState = { startY: event.clientY, distance: 0, pulling: true, refreshing: false };
+  });
+
+  scroller.addEventListener(
+    "pointermove",
+    (event) => {
+      if (!pullRefreshState.pulling || pullRefreshState.refreshing || scroller.scrollTop > 0) return;
+      const delta = event.clientY - pullRefreshState.startY;
+      if (delta <= 0) {
+        setPullRefreshDistance(indicator, 0);
+        return;
+      }
+      pullRefreshState.distance = Math.min(96, delta * 0.55);
+      if (pullRefreshState.distance > 8) event.preventDefault();
+      setPullRefreshDistance(indicator, pullRefreshState.distance);
+    },
+    { passive: false }
+  );
+
+  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
+    scroller.addEventListener(eventName, () => finishPullRefresh(indicator));
+  });
+}
+
+function setPullRefreshDistance(indicator, distance, label = "") {
+  if (!indicator) return;
+  const ready = distance >= 72;
+  indicator.classList.toggle("visible", distance > 8);
+  indicator.classList.toggle("ready", ready);
+  indicator.style.transform = `translate(-50%, ${Math.max(-56, distance - 64)}px)`;
+  indicator.querySelector("span").textContent = label || (ready ? "Release to refresh" : "Pull to refresh");
+}
+
+async function finishPullRefresh(indicator) {
+  if (!pullRefreshState.pulling || pullRefreshState.refreshing) return;
+  const shouldRefresh = pullRefreshState.distance >= 72;
+  pullRefreshState.pulling = false;
+  if (!shouldRefresh) {
+    setPullRefreshDistance(indicator, 0);
+    return;
+  }
+  pullRefreshState.refreshing = true;
+  setPullRefreshDistance(indicator, 72, "Refreshing");
+  indicator?.classList.add("refreshing");
+  try {
+    if (activeGroupId && activePersonId) await syncGroup();
+    else render();
+    await refreshRates();
+    render();
+    setPullRefreshDistance(indicator, 72, "Updated");
+    await wait(450);
+  } catch {
+    setPullRefreshDistance(indicator, 72, "Refresh failed");
+    await wait(700);
+  } finally {
+    indicator?.classList.remove("refreshing");
+    pullRefreshState = { startY: 0, distance: 0, pulling: false, refreshing: false };
+    setPullRefreshDistance(indicator, 0);
+  }
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function watchViewportHeight() {

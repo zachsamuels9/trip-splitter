@@ -71,6 +71,46 @@ button:disabled {
   overscroll-behavior-y: auto;
 }
 
+.pull-refresh-indicator {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 100;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid rgba(47, 208, 233, 0.28);
+  border-radius: 999px;
+  background: rgba(18, 24, 39, 0.94);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+  transition:
+    opacity 0.16s ease,
+    color 0.16s ease;
+}
+
+.pull-refresh-indicator.visible {
+  opacity: 1;
+}
+
+.pull-refresh-indicator.ready {
+  color: var(--cyan);
+}
+
+.pull-refresh-indicator svg {
+  width: 16px;
+  height: 16px;
+}
+
+.pull-refresh-indicator.refreshing svg {
+  animation: spin 0.8s linear infinite;
+}
+
 .standalone-webapp .shell {
   padding-top: max(44px, calc(env(safe-area-inset-top) + 26px));
 }
