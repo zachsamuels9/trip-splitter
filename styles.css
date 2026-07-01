@@ -26,18 +26,20 @@
 }
 
 html {
-  min-height: var(--app-viewport-height);
+  height: var(--app-viewport-height);
   background: #09070e;
+  overflow: hidden;
   overflow-x: hidden;
 }
 
 body {
   margin: 0;
-  min-height: var(--app-viewport-height);
+  height: var(--app-viewport-height);
   background:
     radial-gradient(circle at 50% 16%, rgba(129, 56, 244, 0.23), transparent 240px),
     linear-gradient(180deg, #09070e 0%, #09070e 100%);
   color: var(--ink);
+  overflow: hidden;
   overflow-x: hidden;
 }
 
@@ -60,9 +62,13 @@ button:disabled {
 
 .shell {
   width: min(430px, 100%);
-  min-height: var(--app-viewport-height);
+  height: var(--app-viewport-height);
   margin: 0 auto;
   padding: max(18px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: auto;
 }
 
 .standalone-webapp .shell {

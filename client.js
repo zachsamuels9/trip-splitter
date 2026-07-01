@@ -427,7 +427,13 @@ function showScreen(name, options = {}) {
 
 function trimPageToContent() {
   if (!isBrowser) return;
-  window.scrollTo({ top: 0, behavior: "instant" });
+  const scroller = appScroller();
+  scroller?.scrollTo?.({ top: 0, behavior: "instant" });
+  if (!scroller) window.scrollTo({ top: 0, behavior: "instant" });
+}
+
+function appScroller() {
+  return $(".shell") || null;
 }
 
 function watchViewportHeight() {
