@@ -64,11 +64,12 @@ button:disabled {
   width: min(430px, 100%);
   height: var(--app-viewport-height);
   margin: 0 auto;
-  padding: max(18px, env(safe-area-inset-top)) 16px max(10px, env(safe-area-inset-bottom));
+  padding: max(18px, env(safe-area-inset-top)) 16px max(28px, calc(env(safe-area-inset-bottom) + 20px));
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: auto;
+  scroll-padding-bottom: max(52px, calc(env(safe-area-inset-bottom) + 36px));
 }
 
 .pull-refresh-indicator {
@@ -113,6 +114,7 @@ button:disabled {
 
 .standalone-webapp .shell {
   padding-top: max(44px, calc(env(safe-area-inset-top) + 26px));
+  padding-bottom: max(48px, calc(env(safe-area-inset-bottom) + 36px));
 }
 
 .screen {

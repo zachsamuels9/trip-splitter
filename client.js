@@ -439,7 +439,7 @@ function appScroller() {
 }
 
 function installPullToRefresh() {
-  if (!isBrowser || !window.PointerEvent) return;
+  if (!isBrowser) return;
   const scroller = appScroller();
   if (!scroller) return;
   const indicator = browserDocument.createElement("div");
@@ -447,28 +447,36 @@ function installPullToRefresh() {
   indicator.innerHTML = `<i data-lucide="refresh-cw"></i><span>Pull to refresh</span>`;
   browserDocument.body.appendChild(indicator);
 
-  scroller.addEventListener("pointerdown", (event) => {
-    if (event.pointerType === "mouse" || pullRefreshState.refreshing || scroller.scrollTop > 0) return;
-    pullRefreshState = { startY: event.clientY, distance: 0, pulling: true, refreshing: false };
-  });
+  const startPull = (clientY) => {
+    if (pullRefreshState.refreshing || scroller.scrollTop > 2) return;
+    pullRefreshState = { startY: clientY, distance: 0, pulling: true, refreshing: false };
+  };
+  const movePull = (clientY, event) => {
+    if (!pullRefreshState.pulling || pullRefreshState.refreshing || scroller.scrollTop > 2) return;
+    const delta = clientY - pullRefreshState.startY;
+    if (delta <= 0) {
+      setPullRefreshDistance(indicator, 0);
+      return;
+    }
+    pullRefreshState.distance = Math.min(104, delta * 0.58);
+    if (pullRefreshState.distance > 10) event?.preventDefault?.();
+    setPullRefreshDistance(indicator, pullRefreshState.distance);
+  };
 
-  scroller.addEventListener(
-    "pointermove",
-    (event) => {
-      if (!pullRefreshState.pulling || pullRefreshState.refreshing || scroller.scrollTop > 0) return;
-      const delta = event.clientY - pullRefreshState.startY;
-      if (delta <= 0) {
-        setPullRefreshDistance(indicator, 0);
-        return;
-      }
-      pullRefreshState.distance = Math.min(96, delta * 0.55);
-      if (pullRefreshState.distance > 8) event.preventDefault();
-      setPullRefreshDistance(indicator, pullRefreshState.distance);
-    },
-    { passive: false }
-  );
+  if (window.PointerEvent) {
+    scroller.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse") return;
+      startPull(event.clientY);
+    });
+    scroller.addEventListener("pointermove", (event) => movePull(event.clientY, event), { passive: false });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
+      scroller.addEventListener(eventName, () => finishPullRefresh(indicator));
+    });
+  }
 
-  ["pointerup", "pointercancel", "pointerleave"].forEach((eventName) => {
+  scroller.addEventListener("touchstart", (event) => startPull(event.touches?.[0]?.clientY || 0), { passive: true });
+  scroller.addEventListener("touchmove", (event) => movePull(event.touches?.[0]?.clientY || 0, event), { passive: false });
+  ["touchend", "touchcancel"].forEach((eventName) => {
     scroller.addEventListener(eventName, () => finishPullRefresh(indicator));
   });
 }
@@ -522,12 +530,22 @@ function watchViewportHeight() {
   window.addEventListener("orientationchange", () => {
     setTimeout(updateViewportHeight, 250);
   });
+  browserDocument.addEventListener("focusout", () => {
+    setTimeout(updateViewportHeight, 180);
+  });
 }
 
 function updateViewportHeight() {
   if (!isBrowser) return;
   const height = Math.round(window.visualViewport?.height || window.innerHeight || 0);
+  const layoutHeight = window.innerHeight || height;
+  if (isTextEntryFocused() && height < layoutHeight * 0.82) return;
   if (height > 0) browserDocument.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
+}
+
+function isTextEntryFocused() {
+  const active = browserDocument?.activeElement;
+  return Boolean(active?.matches?.("input, textarea, select"));
 }
 
 function goBack(fallback = "home") {
@@ -1700,7 +1718,8 @@ function renderAssignment() {
     button.addEventListener("click", () => deleteParsedItem(button.dataset.deleteItem));
   });
   $$("[data-edit-item-name]").forEach((input) => {
-    input.addEventListener("change", () => updateParsedItem(input.dataset.editItemName));
+    input.addEventListener("input", () => updateParsedItemName(input.dataset.editItemName, input.value));
+    input.addEventListener("change", () => updateParsedItemName(input.dataset.editItemName, input.value));
   });
   $$("[data-edit-item-amount]").forEach((input) => {
     input.addEventListener("change", () => updateParsedItem(input.dataset.editItemAmount));
@@ -1987,6 +2006,13 @@ function adjustmentLabel(type) {
   if (type === "tip") return "Tip";
   if (type === "tax") return "Tax";
   return "Fees";
+}
+
+function updateParsedItemName(itemId, value) {
+  if (!parsedReceipt) return;
+  const item = parsedReceipt.items.find((entry) => entry.id === itemId);
+  if (!item) return;
+  item.name = String(value || "").trim() || "Item";
 }
 
 function updateParsedItem(itemId, options = {}) {
