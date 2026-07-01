@@ -63,7 +63,7 @@ if (isBrowser) {
       showStartOnboarding();
       return;
     }
-    await initGroup();
+    await initGroup({ allowJoin: Boolean(startInviteGroupId()) });
     render();
     if (isStartRoute() && !activeGroupId) {
       showStartOnboarding();
@@ -558,15 +558,33 @@ function updateRateStatus(text) {
   if (status) status.textContent = text;
 }
 
-async function initGroup() {
+async function initGroup(options = {}) {
+  const allowJoin = Boolean(options.allowJoin);
   if (!activeGroupId) return;
   writeStorage("trip-split-group-id", activeGroupId);
   try {
     const group = await api(`/api/groups/${activeGroupId}`);
     activeGroup = group;
     $("#joinGroupName").textContent = group.name;
+    if (!activePersonId) {
+      const knownPersonId = loadKnownGroups().find((entry) => entry.id === activeGroupId)?.personId || "";
+      if (knownPersonId) {
+        activePersonId = knownPersonId;
+        writeStorage(`trip-split-person-${activeGroupId}`, activePersonId);
+      }
+    }
     if (!activePersonId || !group.people.some((person) => person.id === activePersonId)) {
-      showScreen("join");
+      if (allowJoin) {
+        showScreen("join");
+      } else {
+        removeStorage("trip-split-group-id");
+        activeGroupId = "";
+        activePersonId = "";
+        activeGroup = null;
+        state = defaultState();
+        render();
+        showScreen(loadKnownGroups().length ? "groups" : "account", { resetStack: true });
+      }
       renderGroupUi();
       return;
     }
