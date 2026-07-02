@@ -416,6 +416,7 @@ function showScreen(name, options = {}) {
   if (options.resetStack) navigationStack.length = 0;
   currentScreenName = name;
   browserDocument?.body.classList.remove("start-onboarding");
+  browserDocument?.body.classList.toggle("home-screen-active", name === "home");
   updateBackTargets(name);
   $$(".screen").forEach((screen) => screen.classList.toggle("active", screen.id === `screen-${name}`));
   if (name === "install") renderInstallScreen();
