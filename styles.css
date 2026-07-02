@@ -12,7 +12,6 @@
   --danger: #ff4b55;
   --shadow: 0 18px 45px rgba(0, 0, 0, 0.3);
   --app-viewport-height: 100svh;
-  --standalone-viewport-crop-fix: 0px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -114,8 +113,6 @@ button:disabled {
 }
 
 .standalone-webapp .shell {
-  --standalone-viewport-crop-fix: max(24px, env(safe-area-inset-bottom));
-  height: calc(var(--app-viewport-height) - var(--standalone-viewport-crop-fix));
   padding-top: max(44px, calc(env(safe-area-inset-top) + 26px));
   padding-bottom: max(80px, calc(env(safe-area-inset-bottom) + 68px));
   scroll-padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 80px));
@@ -123,6 +120,10 @@ button:disabled {
 
 .standalone-webapp .screen.active {
   padding-bottom: max(76px, calc(env(safe-area-inset-bottom) + 64px));
+}
+
+.standalone-webapp #screen-home.active {
+  padding-bottom: max(132px, calc(env(safe-area-inset-bottom) + 112px));
 }
 
 .screen {
